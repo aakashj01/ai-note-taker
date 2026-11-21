@@ -2,7 +2,8 @@ import { getSetting, setSetting } from '../db.js';
 import { listModels } from '../gemini.js';
 import { DEFAULT_MODEL } from '../process.js';
 import { APP_VERSION } from '../version.js';
-import { h, header, toast } from './dom.js';
+import { h, header, toast, formatDate } from './dom.js';
+import { buildBackup, restoreBackup, BACKUP_NAME } from '../backup.js';
 import { THEMES, currentTheme, applyTheme } from '../theme.js';
 
 export async function renderSettings(root) {
@@ -19,6 +20,53 @@ export async function renderSettings(root) {
       toast(`${names.length} models found. Tap the model field to pick one.`);
     } catch (e) { toast(e.message); }
   }
+
+  let includeAudio = await getSetting('backupAudio', true);
+  const lastBackup = h('p', { class: 'section-foot' });
+  const showLast = async () => {
+    const t = await getSetting('lastBackup', 0);
+    lastBackup.textContent = (t ? `Last backup: ${formatDate(t)}. ` : 'No backup yet. ')
+      + 'Save it to Files › iCloud Drive. Next time, save to the same folder and tap Replace to keep one backup file.';
+  };
+  showLast();
+  const audioSwitch = h('button', {
+    class: 'switch', role: 'switch', 'aria-checked': String(includeAudio), 'aria-label': 'Include recordings',
+    onclick: async () => { includeAudio = !includeAudio; audioSwitch.setAttribute('aria-checked', String(includeAudio)); await setSetting('backupAudio', includeAudio); },
+  });
+
+  async function backUp(e) {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Preparing backup…';
+    try {
+      const { blob, count } = await buildBackup({ includeAudio });
+      const file = new File([blob], BACKUP_NAME, { type: 'application/json' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] });
+      } else {
+        const a = h('a', { href: URL.createObjectURL(file), download: BACKUP_NAME });
+        document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      }
+      await setSetting('lastBackup', Date.now());
+      await showLast();
+      toast(`Backed up ${count} meeting${count === 1 ? '' : 's'}`);
+    } catch (err) {
+      if (err.name !== 'AbortError') toast('Backup failed: ' + err.message);
+    } finally { btn.disabled = false; btn.textContent = 'Back up now'; }
+  }
+
+  const restoreInput = h('input', {
+    type: 'file', id: 'restore-file', accept: 'application/json,.json', class: 'visually-hidden',
+    onchange: async e => {
+      const f = e.target.files?.[0];
+      e.target.value = '';
+      if (!f) return;
+      try {
+        const { added, skipped } = await restoreBackup(f);
+        toast(`Restored ${added} meeting${added === 1 ? '' : 's'}${skipped ? ` (${skipped} already on this phone)` : ''}`);
+      } catch (err) { toast(err.message); }
+    },
+  });
 
   async function save() {
     await setSetting('apiKey', key.value.trim());
@@ -47,6 +95,14 @@ export async function renderSettings(root) {
         h('h2', { class: 'section-head' }, 'Privacy'),
         h('p', { class: 'summary' }, 'On the free tier, Google may use uploaded audio to improve its products. Recordings and notes are stored only on this phone.')),
       h('section', { class: 'section' }, h('button', { class: 'btn btn-filled btn-block', onclick: save }, 'Save')),
+      h('section', { class: 'section' },
+        h('h2', { class: 'section-head' }, 'Backup'),
+        h('ul', { class: 'group' },
+          h('li', { class: 'cell' }, h('div', { class: 'cell-main' }, 'Include recordings'), audioSwitch),
+          h('li', {}, h('button', { class: 'cell action', onclick: backUp }, 'Back up now')),
+          h('li', {}, h('label', { class: 'cell action', for: 'restore-file', role: 'button' }, 'Restore from backup'))),
+        restoreInput,
+        lastBackup),
       h('p', { class: 'section-foot', style: 'text-align:center' }, `App version ${APP_VERSION}`)),
   );
 }

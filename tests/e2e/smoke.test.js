@@ -34,7 +34,7 @@ before(async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}/`;
   browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone', 'clipboard-read', 'clipboard-write'] });
+  const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone', 'clipboard-read', 'clipboard-write'] });
   await context.route('https://generativelanguage.googleapis.com/**', route => {
     geminiCalls++;
     route.fulfill({ status: 200, contentType: 'text/event-stream', body:
@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 8').waitFor();
+  await page.getByText('App version 9').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -126,6 +126,21 @@ test('to-dos screen lists open to-dos, filters by person, ticks through to the m
   await page.locator('.todo-meeting-link').first().click();
   assert.equal(await page.getByRole('checkbox', { name: 'Done: Send the deck' }).isChecked(), true);
   await page.getByRole('checkbox', { name: 'Done: Send the deck' }).uncheck();
+});
+
+test('backup downloads one fixed-name file, and restoring it keeps existing meetings', async () => {
+  await page.goto(base + '#/settings');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Back up now' }).click()]);
+  assert.equal(download.suggestedFilename(), 'meeting-notes-backup.json');
+  const file = await download.path();
+  await page.getByText(/Last backup:/).waitFor();
+  await page.locator('#restore-file').setInputFiles(file);
+  await page.getByText(/Restored 0 meetings \(2 already on this phone\)/).waitFor();
+  await page.goto(base + '#/m/' + (await page.evaluate(async () => {
+    const db = await new Promise(r => { const q = indexedDB.open('meeting-notes'); q.onsuccess = () => r(q.result); });
+    return new Promise(r => { const q = db.transaction('meetings').objectStore('meetings').getAll(); q.onsuccess = () => r(q.result.find(m => m.notes).id); });
+  })));
+  await page.getByText('The team discussed moving the launch date.').waitFor();
 });
 
 test('reload keeps the meeting', async () => {

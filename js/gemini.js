@@ -19,7 +19,7 @@ async function check(res) {
   throw new GeminiError(`Gemini error ${res.status}${msg ? `: ${msg}` : ''}`, res.status);
 }
 
-async function blobToBase64(blob) {
+export async function blobToBase64(blob) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
