@@ -3,6 +3,7 @@ import { listModels } from '../gemini.js';
 import { DEFAULT_MODEL } from '../process.js';
 import { APP_VERSION } from '../version.js';
 import { h, header, toast } from './dom.js';
+import { THEMES, currentTheme, applyTheme } from '../theme.js';
 
 export async function renderSettings(root) {
   const key = h('input', { id: 'api-key', class: 'field', 'aria-label': 'Gemini API key', type: 'password', value: await getSetting('apiKey', ''), autocomplete: 'off', spellcheck: false, placeholder: 'Paste your key' });
@@ -28,6 +29,12 @@ export async function renderSettings(root) {
   root.append(
     header('Settings', { large: true, back: '#/', backLabel: 'Meetings' }),
     h('main', { class: 'page' },
+      h('section', { class: 'section' },
+        h('h2', { class: 'section-head' }, 'Appearance'),
+        h('ul', { class: 'group' }, h('li', { class: 'cell' },
+          h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Appearance' },
+            THEMES.map(([value, label]) => h('label', {},
+              h('input', { type: 'radio', name: 'theme', value, checked: currentTheme() === value, onchange: () => applyTheme(value) }), label)))))),
       h('section', { class: 'section' },
         h('h2', { class: 'section-head' }, 'Gemini'),
         h('ul', { class: 'group' },

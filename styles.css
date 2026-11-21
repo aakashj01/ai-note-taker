@@ -18,13 +18,21 @@
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme=light]) {
     --bg: #000000; --cell: #1c1c1e; --fill: rgba(118, 118, 128, .24);
     --label: #ffffff; --label-2: rgba(235, 235, 245, .6); --label-3: rgba(235, 235, 245, .3);
     --sep: rgba(84, 84, 88, .65); --tint: #5e5ce6; --tint-soft: rgba(94, 92, 230, .22);
     --red: #ff453a; --orange: #ff9f0a; --green: #30d158; --bar: rgba(22, 22, 24, .78); --hl: rgba(255, 214, 10, .22);
   }
 }
+:root[data-theme=dark] {
+  color-scheme: dark;
+  --bg: #000000; --cell: #1c1c1e; --fill: rgba(118, 118, 128, .24);
+  --label: #ffffff; --label-2: rgba(235, 235, 245, .6); --label-3: rgba(235, 235, 245, .3);
+  --sep: rgba(84, 84, 88, .65); --tint: #5e5ce6; --tint-soft: rgba(94, 92, 230, .22);
+  --red: #ff453a; --orange: #ff9f0a; --green: #30d158; --bar: rgba(22, 22, 24, .78); --hl: rgba(255, 214, 10, .22);
+}
+:root[data-theme=light] { color-scheme: light; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
@@ -73,6 +81,11 @@ button { font: inherit; letter-spacing: inherit; color: inherit; }
   min-height: 30px; padding: 0 12px 0 10px; border-radius: 15px; margin: 0 4px 8px 0;
 }
 .copy-btn:active { opacity: .6; }
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--fill); border-radius: 9px; padding: 2px; width: 100%; }
+.segmented label { position: relative; text-align: center; font-size: 13px; font-weight: 500; padding: 6px 4px; border-radius: 7px; cursor: pointer; }
+.segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.segmented label:has(input:checked) { background: var(--cell); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); font-weight: 600; }
+.segmented label:has(input:focus-visible) { outline: 3px solid var(--tint); }
 .section-foot { font-size: 13px; line-height: 18px; color: var(--label-2); margin: 7px 16px 0; letter-spacing: -0.08px; }
 .group { list-style: none; margin: 0; padding: 0; background: var(--cell); border-radius: var(--r); overflow: hidden; }
 .cell { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label); }

@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 5').waitFor();
+  await page.getByText('App version 6').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -134,4 +134,17 @@ test('a recording cut off by a page reload can be continued as the same meeting'
   await page.getByText(/recorded in 2 parts/).waitFor();
   await page.goto(base);
   assert.equal(await page.locator('.meeting-card').count(), 3);
+});
+
+test('theme: choosing Dark sets data-theme=dark and survives reload', async () => {
+  await page.goto(base + '#/settings');
+  await page.getByRole('radio', { name: 'Dark' }).check();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  await page.reload();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'dark');
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  assert.equal(bg, 'rgb(0, 0, 0)');
+  await page.goto(base + '#/settings');
+  await page.getByRole('radio', { name: 'System' }).check();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
 });
