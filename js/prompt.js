@@ -23,7 +23,7 @@ const OUTPUT = `Return JSON with:
 - todos: action items.
 - transcript: segments in order, a new segment at each change of speaker (split long turns at ~30 s).`;
 
-export function buildPrompt({ parts, context }) {
+export function buildPrompt({ parts, context, notesOnly = false }) {
   const partLines = parts.length > 1
     ? `The audio comes in ${parts.length} parts because recording was interrupted. ` +
       parts.map((p, i) => `Part ${i + 1} starts at ${formatTime(p.startOffset)}`).join('; ') +
@@ -34,7 +34,7 @@ export function buildPrompt({ parts, context }) {
     partLines,
     RULES,
     context ? `Extra context from the person who recorded this (trust it over what you hear):\n${context}` : '',
-    OUTPUT,
+    notesOnly ? OUTPUT.replace(/\n- transcript:.*$/, '') + '\nDo not include a transcript.' : OUTPUT,
   ].filter(Boolean).join('\n\n');
 }
 
@@ -43,7 +43,10 @@ export function buildRegeneratePrompt({ transcriptText, context }) {
     'You are a careful meeting note-taker. Below is a corrected transcript of a work meeting, already checked by the person who recorded it. Re-write the notes from it.',
     RULES,
     context ? `Extra context from the person who recorded this (trust it over the transcript):\n${context}` : '',
-    OUTPUT + '\nFor transcript, return the transcript below unchanged, split into segments with the same times and speakers.',
+    `Return JSON with:
+- summary: 3-6 sentence summary of the meeting.
+- key_ideas: the main ideas, decisions and points discussed (source = the [m:ss] time it was said).
+- todos: action items. owner_speaker must be a label like "Speaker 2" (see the name list), not a name.`,
     `Transcript:\n${transcriptText}`,
   ].filter(Boolean).join('\n\n');
 }
@@ -59,4 +62,16 @@ export const RESPONSE_SCHEMA = {
   },
   required: ['summary', 'key_ideas', 'todos', 'transcript'],
   propertyOrdering: ['transcript', 'summary', 'key_ideas', 'todos'],
+};
+
+// Used for "Regenerate notes" and as the fallback when a long meeting's answer gets cut off.
+export const NOTES_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    summary: S,
+    key_ideas: RESPONSE_SCHEMA.properties.key_ideas,
+    todos: RESPONSE_SCHEMA.properties.todos,
+  },
+  required: ['summary', 'key_ideas', 'todos'],
+  propertyOrdering: ['summary', 'key_ideas', 'todos'],
 };

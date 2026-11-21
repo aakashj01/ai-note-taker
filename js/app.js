@@ -17,6 +17,7 @@ async function route() {
   let m;
   if (hash === '/') cleanup = await renderLibrary(root);
   else if (hash === '/record') cleanup = await renderRecord(root);
+  else if ((m = hash.match(/^\/record\/([^/]+)$/))) cleanup = await renderRecord(root, decodeURIComponent(m[1]));
   else if (hash === '/settings') cleanup = await renderSettings(root);
   else if ((m = hash.match(/^\/m\/([^/]+)\/speakers$/))) cleanup = await renderSpeakers(root, decodeURIComponent(m[1]));
   else if ((m = hash.match(/^\/m\/([^/]+)$/))) cleanup = await renderMeeting(root, decodeURIComponent(m[1]));

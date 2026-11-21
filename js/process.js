@@ -22,11 +22,14 @@ export function geminiMime(type) {
   return t;
 }
 
+let geminiFactory = createGemini;
+export function setGeminiFactory(fn) { geminiFactory = fn; } // tests
+
 async function client() {
   const apiKey = await getSetting('apiKey', '');
   if (!apiKey) return null;
   const model = (await getSetting('model', DEFAULT_MODEL)) || DEFAULT_MODEL;
-  return createGemini({ apiKey, model });
+  return geminiFactory({ apiKey, model });
 }
 
 function mergeSpeakers(old = {}, labels) {
@@ -35,7 +38,15 @@ function mergeSpeakers(old = {}, labels) {
   return out;
 }
 
-async function run(id, work) {
+function friendlyError(e) {
+  if (e instanceof TypeError || /load failed|failed to fetch|networkerror|network connection/i.test(e?.message || '')) {
+    return 'Connection lost while making notes (was the app closed, or the internet off?). Keep the app open and tap "Make notes" to try again.';
+  }
+  return e?.message || String(e);
+}
+
+// keepTranscript: regenerate only rewrites the notes, never the owner's corrected transcript.
+async function run(id, work, { keepTranscript = false } = {}) {
   if (jobs.has(id)) return jobs.get(id);
   const job = (async () => {
     const m = await getMeeting(id);
@@ -46,23 +57,35 @@ async function run(id, work) {
       return m;
     }
     const prevStatus = m.status;
-    m.status = 'processing'; m.error = null;
+    m.status = 'processing'; m.error = null; m.notice = null;
     await saveMeeting(m); emit(id);
+    let result = null, error = null;
     try {
       const raw = await work(m, gemini);
-      const r = normalizeResult(raw, meetingDuration(m));
-      m.transcript = r.transcript;
-      const doneFlags = new Map((m.notes?.todos || []).map(t => [t.text, t.done]));
-      r.notes.todos.forEach(t => { t.done = doneFlags.get(t.text) || false; });
-      m.notes = r.notes;
-      m.speakers = mergeSpeakers(m.speakers, r.speakers);
-      m.status = 'ready';
+      result = normalizeResult(raw, meetingDuration(m));
+      result.dropped = !!raw.transcriptDropped;
     } catch (e) {
-      m.error = e.message || String(e);
-      m.status = prevStatus === 'ready' ? 'ready' : 'failed';
+      error = friendlyError(e);
     }
-    await saveMeeting(m);
-    return m;
+    // Re-read so edits made while we waited (title, ticks) are not overwritten.
+    const latest = (await getMeeting(id)) || m;
+    if (result) {
+      const doneFlags = new Map((latest.notes?.todos || []).map(t => [t.text, t.done]));
+      result.notes.todos.forEach(t => { t.done = doneFlags.get(t.text) || false; });
+      latest.notes = result.notes;
+      if (!keepTranscript) {
+        latest.transcript = result.transcript;
+        latest.speakers = mergeSpeakers(latest.speakers, result.speakers);
+        latest.edited = false;
+      }
+      latest.notice = result.dropped ? 'This meeting was too long for a full transcript, so only the notes were made. The ↗ links still play the audio.' : null;
+      latest.status = 'ready'; latest.error = null;
+    } else {
+      latest.error = error;
+      latest.status = prevStatus === 'ready' ? 'ready' : 'failed';
+    }
+    await saveMeeting(latest);
+    return latest;
   })();
   jobs.set(id, job);
   try { return await job; } finally { jobs.delete(id); emit(id); }
@@ -82,7 +105,7 @@ export function processMeeting(id) {
 }
 
 export function regenerateNotes(id) {
-  return run(id, (m, gemini) => gemini.regenerate(transcriptToText(m.transcript || [], m.speakers), m.context || ''));
+  return run(id, (m, gemini) => gemini.regenerate(transcriptToText(m.transcript || [], m.speakers), m.context || ''), { keepTranscript: true });
 }
 
 // After a reload no job is running, so anything stuck "processing"/"recording" is recovered.

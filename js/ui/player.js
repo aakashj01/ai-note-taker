@@ -1,10 +1,26 @@
 // Plays the meeting from a meeting-time position, picking the right recorded part.
-import { getPartBlob } from '../db.js';
+// iOS only allows play() directly inside a tap, so blobs are prepared up front and
+// play() is called synchronously; the seek happens once the metadata has loaded.
+import { getPartBlob as dbGetPartBlob } from '../db.js';
 
-export function createPlayer(meeting) {
-  const audio = new Audio();
-  audio.preload = 'none';
-  let url = null, loadedPart = null;
+export function createPlayer(meeting, {
+  Audio: AudioCtor = globalThis.Audio,
+  getPartBlob = dbGetPartBlob,
+  createURL = b => URL.createObjectURL(b),
+  revokeURL = u => URL.revokeObjectURL(u),
+} = {}) {
+  const audio = new AudioCtor();
+  audio.preload = 'auto';
+  const urls = new Map();
+  let loadedPart = null, pendingSeek = null;
+
+  audio.addEventListener('loadedmetadata', () => {
+    if (pendingSeek != null) { audio.currentTime = pendingSeek; pendingSeek = null; }
+  });
+
+  const ready = Promise.all((meeting.parts || []).map(async p => {
+    urls.set(p.id, createURL(await getPartBlob(p.id, p.mimeType)));
+  })).catch(() => {});
 
   function partAt(t) {
     const parts = meeting.parts || [];
@@ -13,19 +29,21 @@ export function createPlayer(meeting) {
   }
 
   return {
-    async playFrom(t) {
+    ready,
+    playFrom(t) {
       const p = partAt(t);
-      if (!p) return;
+      if (!p || !urls.has(p.id)) return ready.then(() => urls.has(p?.id) && this.playFrom(t));
+      const pos = Math.max(0, t - p.startOffset - 1);
       if (loadedPart !== p.id) {
-        if (url) URL.revokeObjectURL(url);
-        url = URL.createObjectURL(await getPartBlob(p.id, p.mimeType));
-        audio.src = url; loadedPart = p.id;
-        await new Promise(r => { audio.onloadedmetadata = r; audio.onerror = r; audio.load(); });
+        audio.src = urls.get(p.id); loadedPart = p.id;
+        pendingSeek = pos;
+        audio.load();
+      } else {
+        audio.currentTime = pos;
       }
-      audio.currentTime = Math.max(0, t - p.startOffset - 1);
-      await audio.play().catch(() => {});
+      return audio.play()?.catch(() => {});
     },
     pause() { audio.pause(); },
-    dispose() { audio.pause(); if (url) URL.revokeObjectURL(url); },
+    dispose() { audio.pause(); urls.forEach(u => revokeURL(u)); urls.clear(); },
   };
 }

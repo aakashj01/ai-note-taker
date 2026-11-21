@@ -7,7 +7,7 @@ const TIMESLICE = 5000;
 
 export function createRecorder({
   getUserMedia, MediaRecorder, wakeLock, doc,
-  onChunk, onPartEnd, onInterrupted = () => {},
+  onChunk, onPartEnd, onInterrupted = () => {}, onError = () => {},
   now = () => Date.now(),
 }) {
   let state = 'idle';
@@ -58,6 +58,7 @@ export function createRecorder({
 
   return {
     get state() { return state; },
+    get hasWakeLock() { return !!lock; },
     get currentPartId() { return rec ? part.id : null; },
     get currentMimeType() { return rec ? part.mimeType : null; },
     elapsed() { return (part?.startOffset || 0) + (rec ? partSeconds() : part?.duration || 0); },
@@ -73,7 +74,9 @@ export function createRecorder({
       seq = 0; pending = []; accumulated = 0;
       const partId = part.id;
       rec.ondataavailable = e => {
-        if (e.data && e.data.size) pending.push(onChunk(partId, seq++, e.data));
+        if (!e.data || !e.data.size) return;
+        // A failed save (e.g. phone storage full) must not be silent: audio would be lost.
+        pending.push(Promise.resolve(onChunk(partId, seq++, e.data)).catch(err => { onError(err); }));
       };
       rec.start(TIMESLICE);
       startedAt = now();

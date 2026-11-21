@@ -79,3 +79,10 @@ test('toMarkdown uses speaker names', () => {
   assert.match(md, /- \[ \] Speaker 1: book venue\n/);
   assert.match(md, /## Key ideas\n\n- Pricing stays at ₹499/);
 });
+
+test('transcriptToText keeps speaker labels and adds a name legend', async () => {
+  const { transcriptToText } = await import('../../js/notes.js');
+  const txt = transcriptToText([{ start: 5, speaker: 'Speaker 2', text: 'hi' }], { 'Speaker 2': 'Rahul' });
+  assert.match(txt, /\[0:05\] Speaker 2: hi/);
+  assert.match(txt, /Speaker 2 = Rahul/);
+});

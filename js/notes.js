@@ -49,8 +49,11 @@ export function displaySpeaker(label, speakers) {
   return (speakers && str(speakers[label])) || label;
 }
 
-export function transcriptToText(transcript, speakers) {
-  return transcript.map(s => `[${formatTime(s.start)}] ${displaySpeaker(s.speaker, speakers)}: ${s.text}`).join('\n');
+// Keeps the labels (so owner_speaker comes back as a label) and adds who-is-who.
+export function transcriptToText(transcript, speakers = {}) {
+  const lines = transcript.map(s => `[${formatTime(s.start)}] ${s.speaker}: ${s.text}`);
+  const legend = Object.entries(speakers).filter(([, n]) => n && n.trim()).map(([l, n]) => `${l} = ${n.trim()}`);
+  return (legend.length ? `Speaker names: ${legend.join(', ')}\n\n` : '') + lines.join('\n');
 }
 
 export function toMarkdown(meeting) {

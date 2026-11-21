@@ -84,9 +84,9 @@ test('500 throws GeminiError with the server message', async () => {
 });
 
 test('non-JSON candidate text throws GeminiError', async () => {
-  const fetch = fakeFetch([new Response(JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"summary": "cut' }] } }] }))]);
+  const fetch = fakeFetch([new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{"summary": "cut' }] } }] }))]);
   const g = createGemini({ apiKey: 'K', model: 'm', fetch });
-  await assert.rejects(g.processAudio([part([1])], ''), e => e instanceof GeminiError && /cut off|could not read/i.test(e.message));
+  await assert.rejects(g.processAudio([part([1])], ''), e => e instanceof GeminiError && /could not read/i.test(e.message));
 });
 
 test('prompt mentions part start offsets and Roman script', () => {
@@ -114,4 +114,30 @@ test('listModels returns generateContent models, flash first', async () => {
     { name: 'models/gemini-flash-latest', supportedGenerationMethods: ['generateContent'] },
   ] }))]);
   assert.deepEqual(await listModels({ apiKey: 'K', fetch }), ['gemini-flash-latest', 'gemini-pro-x']);
+});
+
+test('regenerate uses a notes-only schema (no transcript echo)', async () => {
+  const fetch = fakeFetch([answer({ summary: 's', key_ideas: [], todos: [] })]);
+  const g = createGemini({ apiKey: 'K', model: 'm', fetch });
+  await g.regenerate('[0:00] Speaker 1: hi', '');
+  const schema = JSON.parse(fetch.calls[0].init.body).generationConfig.responseSchema;
+  assert.equal(schema.properties.transcript, undefined);
+  assert.ok(!schema.required.includes('transcript'));
+});
+
+test('no temperature override (Gemini 3 models loop at low temperature)', async () => {
+  const fetch = fakeFetch([answer(RESULT)]);
+  await createGemini({ apiKey: 'K', model: 'm', fetch }).processAudio([part([1])], '');
+  assert.equal(JSON.parse(fetch.calls[0].init.body).generationConfig.temperature, undefined);
+});
+
+test('cut-off answer retries once with notes only, reusing the audio', async () => {
+  const cut = new Response(JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"transcript": [' }] } }] }));
+  const fetch = fakeFetch([cut, answer({ summary: 'short', key_ideas: [], todos: [] })]);
+  const out = await createGemini({ apiKey: 'K', model: 'm', fetch }).processAudio([part([104, 105])], '');
+  assert.equal(out.summary, 'short');
+  assert.equal(out.transcriptDropped, true);
+  const second = JSON.parse(fetch.calls[1].init.body);
+  assert.equal(second.generationConfig.responseSchema.properties.transcript, undefined);
+  assert.equal(second.contents[0].parts.find(p => p.inline_data).inline_data.data, 'aGk=');
 });

@@ -107,3 +107,18 @@ test('layout has no horizontal scroll at 390px width', async () => {
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), 'meeting');
 });
+
+test('a recording cut off by a page reload can be continued as the same meeting', async () => {
+  await page.goto(base + '#/record');
+  await page.getByRole('button', { name: 'Start recording' }).click();
+  await page.getByRole('button', { name: 'Stop' }).waitFor();
+  await page.waitForTimeout(6500); // at least one 5 s chunk saved
+  await page.reload(); // what iOS does to a backgrounded home-screen app
+  await page.getByRole('button', { name: /Continue recording/ }).click();
+  await page.getByRole('button', { name: 'Stop' }).waitFor();
+  await page.waitForTimeout(1500);
+  await page.getByRole('button', { name: 'Stop' }).click();
+  await page.getByText(/recorded in 2 parts/).waitFor();
+  await page.goto(base);
+  assert.equal(await page.locator('.meeting-card').count(), 3);
+});

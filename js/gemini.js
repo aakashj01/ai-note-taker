@@ -1,5 +1,5 @@
 // Talks to the Gemini REST API using the owner's own key. fetch/sleep are injectable for tests.
-import { buildPrompt, buildRegeneratePrompt, RESPONSE_SCHEMA } from './prompt.js';
+import { buildPrompt, buildRegeneratePrompt, RESPONSE_SCHEMA, NOTES_SCHEMA } from './prompt.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const UPLOAD = 'https://generativelanguage.googleapis.com/upload/v1beta/files';
@@ -7,7 +7,7 @@ export const INLINE_LIMIT = 14 * 1024 * 1024;
 const POLL_MS = 2000, POLL_MAX = 60;
 
 export class GeminiError extends Error {
-  constructor(message, status = 0) { super(message); this.name = 'GeminiError'; this.status = status; }
+  constructor(message, status = 0, truncated = false) { super(message); this.name = 'GeminiError'; this.status = status; this.truncated = truncated; }
 }
 
 async function check(res) {
@@ -68,13 +68,13 @@ export function createGemini({ apiKey, model, fetch = globalThis.fetch, sleep = 
     return { file_data: { mime_type: mimeType, file_uri: file.uri } };
   }
 
-  async function generate(parts) {
+  async function generate(parts, schema = RESPONSE_SCHEMA) {
     const res = await check(await fetch(`${BASE}/models/${model}:generateContent`, {
       method: 'POST',
       headers: { ...auth, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA, temperature: 0.2, maxOutputTokens: 65536 },
+        generationConfig: { responseMimeType: 'application/json', responseSchema: schema, maxOutputTokens: 65536 },
       }),
     }));
     const data = await res.json();
@@ -84,9 +84,10 @@ export function createGemini({ apiKey, model, fetch = globalThis.fetch, sleep = 
     try {
       return JSON.parse(text);
     } catch {
-      throw new GeminiError(cand?.finishReason === 'MAX_TOKENS'
-        ? 'The AI\'s answer was cut off (meeting too long for one go). Try again, or split the recording.'
-        : 'Could not read the AI\'s answer. Try again.');
+      const cut = cand?.finishReason === 'MAX_TOKENS';
+      throw new GeminiError(cut
+        ? 'The AI\'s answer was cut off because the meeting is very long. Try again.'
+        : 'Could not read the AI\'s answer. Try again.', 0, cut);
     }
   }
 
@@ -99,10 +100,17 @@ export function createGemini({ apiKey, model, fetch = globalThis.fetch, sleep = 
           ? { inline_data: { mime_type: p.mimeType, data: await blobToBase64(p.blob) } }
           : await upload(p.blob, p.mimeType));
       }
-      return generate([...audio, { text: buildPrompt({ parts, context }) }]);
+      try {
+        return await generate([...audio, { text: buildPrompt({ parts, context }) }]);
+      } catch (e) {
+        if (!e.truncated) throw e;
+        // Too long for transcript + notes in one answer: get the notes alone, same audio.
+        const notes = await generate([...audio, { text: buildPrompt({ parts, context, notesOnly: true }) }], NOTES_SCHEMA);
+        return { ...notes, transcript: [], transcriptDropped: true };
+      }
     },
     regenerate(transcriptText, context) {
-      return generate([{ text: buildRegeneratePrompt({ transcriptText, context }) }]);
+      return generate([{ text: buildRegeneratePrompt({ transcriptText, context }) }], NOTES_SCHEMA);
     },
   };
 }

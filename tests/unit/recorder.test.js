@@ -122,3 +122,31 @@ test('exposes the current part id and mime type while recording', async () => {
   s.mr().emit('a');
   assert.equal(s.log.chunks[0].partId, s.rec.currentPartId);
 });
+
+test('hasWakeLock is false when the wake lock is unavailable', async () => {
+  const s = setup();
+  await s.rec.start(0);
+  assert.equal(s.rec.hasWakeLock, true);
+  const r2 = createRecorder({
+    getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }),
+    MediaRecorder: s.mr().constructor, wakeLock: undefined, doc: s.doc,
+    onChunk: async () => {}, onPartEnd: () => {},
+  });
+  await r2.start(0);
+  assert.equal(r2.hasWakeLock, false);
+});
+
+test('a failed chunk save is reported through onError', async () => {
+  const errors = [];
+  const s = setup();
+  const r = createRecorder({
+    getUserMedia: async () => ({ getTracks: () => [], getAudioTracks: () => [] }),
+    MediaRecorder: s.mr()?.constructor || (await (async () => { await s.rec.start(0); return s.mr().constructor; })()),
+    doc: s.doc, onChunk: async () => { throw new Error('QuotaExceededError'); },
+    onPartEnd: () => {}, onError: e => errors.push(e.message),
+  });
+  await r.start(0);
+  s.mr().emit('a');
+  await new Promise(res => setTimeout(res, 0));
+  assert.deepEqual(errors, ['QuotaExceededError']);
+});
