@@ -75,7 +75,8 @@ export async function renderLibrary(root) {
       results.replaceChildren(h('div', { class: 'empty' },
         icon('waveform', 56),
         h('h2', {}, 'No meetings yet'),
-        h('p', {}, 'Tap the red button when your meeting starts. If you need to lock your phone, record in Voice Memos and import the file.')));
+        h('p', {}, 'Tap the red button when your meeting starts. If you need to lock your phone, record in Voice Memos and import the file.'),
+        h('a', { class: 'btn btn-plain', href: '#/help', style: 'margin-top:8px' }, 'How to use the app')));
       return;
     }
     if (!found.length) {

@@ -77,7 +77,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 15').waitFor();
+  await page.getByText('App version 16').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -252,4 +252,15 @@ test('ask your meetings answers with a tappable source', async () => {
   await page.getByText('Rahul said he will send the deck by Friday.').waitFor();
   await page.locator('.source-link').first().click();
   await page.getByText('The team discussed moving the launch date.').waitFor();
+});
+
+test('how to use page covers every feature', async () => {
+  await page.goto(base + '#/settings');
+  await page.getByRole('link', { name: 'How to use the app' }).click();
+  for (const topic of ['Set up', 'Record a meeting', 'Import from Voice Memos', 'Make notes', 'Meeting types', 'Name speakers', 'Mark important moments',
+    'Check and fix notes', 'Copy and share', 'To-dos', 'Search', 'Ask your meetings', 'Back up and restore', 'API usage and log', 'Appearance', 'Troubleshooting']) {
+    await page.getByText(topic, { exact: true }).first().waitFor();
+  }
+  await page.getByText('Record a meeting', { exact: true }).click();
+  await page.getByText(/Keep the app open while recording/).waitFor();
 });

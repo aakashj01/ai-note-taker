@@ -136,6 +136,15 @@ mark { background: var(--hl); color: inherit; border-radius: 3px; padding: 0 1px
 .type-picker { margin-top: 14px; }
 .chip-btn { border: 0; color: var(--tint); font: inherit; font-size: 15px; font-weight: 500; }
 .chip-btn:active { background: var(--tint-soft); }
+.help-item + .help-item > summary::before { content: ""; position: absolute; top: 0; right: 0; left: 50px; border-top: .5px solid var(--sep); }
+.help-item > summary { list-style: none; cursor: pointer; }
+.help-item > summary::-webkit-details-marker { display: none; }
+.help-item > summary > .icon:last-child { color: var(--label-3); transition: transform .2s; }
+.help-item[open] > summary > .icon:last-child { transform: rotate(90deg); }
+.help-icon { width: 30px; height: 30px; border-radius: 7px; background: var(--tint); color: #fff; display: grid; place-items: center; flex: none; }
+.help-steps { margin: 0; padding: 0 16px 14px 66px; color: var(--label); font-size: 15px; line-height: 21px; letter-spacing: -0.24px; }
+.help-steps li { margin-top: 8px; padding-left: 2px; }
+.help-steps li::marker { color: var(--label-2); font-variant-numeric: tabular-nums; }
 .section-foot { font-size: 13px; line-height: 18px; color: var(--label-2); margin: 7px 16px 0; letter-spacing: -0.08px; }
 .group { list-style: none; margin: 0; padding: 0; background: var(--cell); border-radius: var(--r); overflow: hidden; }
 .cell { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label); }

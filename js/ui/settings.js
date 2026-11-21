@@ -114,6 +114,8 @@ export async function renderSettings(root) {
   root.append(
     header('Settings', { large: true, back: '#/', backLabel: 'Meetings' }),
     h('main', { class: 'page' },
+      h('ul', { class: 'group', style: 'margin-top:8px' }, h('li', {},
+        h('a', { class: 'cell', href: '#/help' }, h('span', { style: 'color:var(--tint)' }, icon('sparkle', 22)), h('div', { class: 'cell-main' }, 'How to use the app'), h('div', { class: 'cell-trail' }, icon('chevron', 16))))),
       h('section', { class: 'section' },
         h('h2', { class: 'section-head' }, 'Appearance'),
         h('ul', { class: 'group' }, h('li', { class: 'cell' },
