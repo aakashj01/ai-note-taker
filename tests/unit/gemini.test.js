@@ -3,9 +3,18 @@ import assert from 'node:assert/strict';
 import { createGemini, GeminiError, listModels, INLINE_LIMIT } from '../../js/gemini.js';
 import { buildPrompt, buildRegeneratePrompt, RESPONSE_SCHEMA } from '../../js/prompt.js';
 
-const answer = obj => new Response(JSON.stringify({
-  candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(obj) }] } }],
-}), { status: 200, headers: { 'content-type': 'application/json' } });
+// Gemini streams Server-Sent Events: thought summaries first (keeps iOS from timing out), then the JSON in pieces.
+const sse = events => new Response(events.map(e => `data: ${JSON.stringify(e)}\r\n\r\n`).join(''), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+const answer = (obj, finishReason = 'STOP') => {
+  const text = typeof obj === 'string' ? obj : JSON.stringify(obj);
+  const mid = Math.floor(text.length / 2);
+  return sse([
+    { candidates: [{ content: { parts: [{ text: 'Listening to the audio…', thought: true }] } }] },
+    { candidates: [{ content: { parts: [{ text: text.slice(0, mid) }] } }] },
+    { candidates: [{ content: { parts: [{ text: text.slice(mid) }] }, finishReason }] },
+  ]);
+};
+const err = (status, message) => new Response(JSON.stringify({ error: { code: status, message } }), { status });
 
 function fakeFetch(handlers) {
   const calls = [];
@@ -28,7 +37,8 @@ test('small audio is sent inline as base64', async () => {
   const out = await g.processAudio([part([104, 105])], '');
   assert.deepEqual(out, RESULT);
   const { url, init } = fetch.calls[0];
-  assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/m1:generateContent');
+  assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/m1:streamGenerateContent?alt=sse');
+  assert.equal(JSON.parse(init.body).generationConfig.thinkingConfig.includeThoughts, true);
   assert.equal(init.headers['x-goog-api-key'], 'K');
   const body = JSON.parse(init.body);
   const audio = body.contents[0].parts.find(p => p.inline_data);
@@ -72,19 +82,19 @@ test('file processing FAILED throws GeminiError', async () => {
 });
 
 test('429 throws GeminiError with friendly message', async () => {
-  const fetch = fakeFetch([new Response('{"error":{"message":"quota"}}', { status: 429 })]);
-  const g = createGemini({ apiKey: 'K', model: 'm', fetch });
+  const fetch = fakeFetch([err(429, 'quota'), err(429, 'quota')]);
+  const g = createGemini({ apiKey: 'K', model: 'm', fetch, sleep: () => {} });
   await assert.rejects(g.processAudio([part([1])], ''), e => e instanceof GeminiError && e.status === 429 && /free limit reached/.test(e.message));
 });
 
 test('500 throws GeminiError with the server message', async () => {
-  const fetch = fakeFetch([new Response('{"error":{"message":"Internal boom"}}', { status: 500 })]);
-  const g = createGemini({ apiKey: 'K', model: 'm', fetch });
+  const fetch = fakeFetch(Array.from({ length: 5 }, () => err(500, 'Internal boom')));
+  const g = createGemini({ apiKey: 'K', model: 'm', fetch, sleep: () => {} });
   await assert.rejects(g.processAudio([part([1])], ''), e => e instanceof GeminiError && /Internal boom/.test(e.message));
 });
 
 test('non-JSON candidate text throws GeminiError', async () => {
-  const fetch = fakeFetch([new Response(JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{"summary": "cut' }] } }] }))]);
+  const fetch = fakeFetch([answer('{"summary": "cut')]);
   const g = createGemini({ apiKey: 'K', model: 'm', fetch });
   await assert.rejects(g.processAudio([part([1])], ''), e => e instanceof GeminiError && /could not read/i.test(e.message));
 });
@@ -132,7 +142,7 @@ test('no temperature override (Gemini 3 models loop at low temperature)', async 
 });
 
 test('cut-off answer retries once with notes only, reusing the audio', async () => {
-  const cut = new Response(JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"transcript": [' }] } }] }));
+  const cut = answer('{"transcript": [', 'MAX_TOKENS');
   const fetch = fakeFetch([cut, answer({ summary: 'short', key_ideas: [], todos: [] })]);
   const out = await createGemini({ apiKey: 'K', model: 'm', fetch }).processAudio([part([104, 105])], '');
   assert.equal(out.summary, 'short');
@@ -140,4 +150,53 @@ test('cut-off answer retries once with notes only, reusing the audio', async () 
   const second = JSON.parse(fetch.calls[1].init.body);
   assert.equal(second.generationConfig.responseSchema.properties.transcript, undefined);
   assert.equal(second.contents[0].parts.find(p => p.inline_data).inline_data.data, 'aGk=');
+});
+
+test('503 high demand: waits and retries, then succeeds', async () => {
+  const fetch = fakeFetch([err(503, 'This model is currently experiencing high demand.'), answer(RESULT)]);
+  const sleeps = [], status = [];
+  const g = createGemini({ apiKey: 'K', model: 'main', fetch, sleep: ms => { sleeps.push(ms); }, onStatus: m => status.push(m) });
+  assert.deepEqual(await g.processAudio([part([1])], ''), RESULT);
+  assert.deepEqual(sleeps, [5000]);
+  assert.match(status[0], /busy/i);
+  assert.match(fetch.calls[1].url, /models\/main:/);
+});
+
+test('503 keeps happening: switches to the lighter fallback model', async () => {
+  const fetch = fakeFetch([err(503, 'high demand'), err(503, 'high demand'), err(503, 'high demand'), answer(RESULT)]);
+  const g = createGemini({ apiKey: 'K', model: 'main', fetch, sleep: () => {} });
+  assert.deepEqual(await g.processAudio([part([1])], ''), RESULT);
+  assert.match(fetch.calls[3].url, /models\/gemini-flash-lite-latest:/);
+});
+
+test('429 on the main model goes straight to the fallback model', async () => {
+  const fetch = fakeFetch([err(429, 'Quota exceeded'), answer(RESULT)]);
+  const g = createGemini({ apiKey: 'K', model: 'main', fetch, sleep: () => {} });
+  assert.deepEqual(await g.processAudio([part([1])], ''), RESULT);
+  assert.match(fetch.calls[1].url, /models\/gemini-flash-lite-latest:/);
+});
+
+test('everything busy: friendly 503 message', async () => {
+  const fetch = fakeFetch(Array.from({ length: 5 }, () => err(503, 'high demand')));
+  const g = createGemini({ apiKey: 'K', model: 'main', fetch, sleep: () => {} });
+  await assert.rejects(g.processAudio([part([1])], ''), e => e instanceof GeminiError && e.status === 503 && /very busy/i.test(e.message));
+});
+
+test('a model that rejects thinking settings is retried without them', async () => {
+  const fetch = fakeFetch([err(400, 'Thinking is not supported by this model.'), answer(RESULT)]);
+  const g = createGemini({ apiKey: 'K', model: 'm', fetch, sleep: () => {} });
+  assert.deepEqual(await g.processAudio([part([1])], ''), RESULT);
+  assert.equal(JSON.parse(fetch.calls[1].init.body).generationConfig.thinkingConfig, undefined);
+});
+
+test('thought text is never mixed into the answer', async () => {
+  const fetch = fakeFetch([answer(RESULT)]);
+  const out = await createGemini({ apiKey: 'K', model: 'm', fetch }).processAudio([part([1])], '');
+  assert.deepEqual(out, RESULT);
+});
+
+test('a dropped connection is retried once', async () => {
+  const fetch = fakeFetch([() => { throw new TypeError('Load failed'); }, answer(RESULT)]);
+  const g = createGemini({ apiKey: 'K', model: 'm', fetch, sleep: () => {} });
+  assert.deepEqual(await g.processAudio([part([1])], ''), RESULT);
 });

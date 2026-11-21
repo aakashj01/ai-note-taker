@@ -1,6 +1,6 @@
 import { getMeeting, saveMeeting, deleteMeeting } from '../db.js';
 import { formatTime, displaySpeaker, toMarkdown } from '../notes.js';
-import { processMeeting, regenerateNotes, isRunning, onJobChange, NO_KEY } from '../process.js';
+import { processMeeting, regenerateNotes, isRunning, onJobChange, jobStatus, NO_KEY } from '../process.js';
 import { h, header, toast, formatDate, meetingDuration } from './dom.js';
 import { createPlayer } from './player.js';
 
@@ -82,7 +82,7 @@ export async function renderMeeting(root, id) {
       h('p', { class: 'muted meta' }, `${formatDate(m.createdAt)} · ${formatTime(meetingDuration(m))}`,
         gaps ? ` · recorded in ${m.parts.length} parts (interrupted at ${m.parts.slice(1).map(p => formatTime(p.startOffset)).join(', ')})` : ''),
       m.error ? h('div', { class: 'alert' }, m.error === NO_KEY ? [NO_KEY, ' ', h('a', { href: '#/settings' }, 'Open Settings')] : m.error) : null,
-      running ? h('div', { class: 'working' }, h('div', { class: 'spinner' }), h('p', {}, 'Making notes… this can take a minute or two for long meetings. Keep the app open until the notes appear.')) : null,
+      running ? h('div', { class: 'working' }, h('div', { class: 'spinner' }), h('p', {}, jobStatus(id) || 'Making notes… this can take a minute or two for long meetings. Keep the app open until the notes appear.')) : null,
       m.notice ? h('p', { class: 'alert' }, m.notice) : null,
       !running && !m.notes ? h('button', { class: 'btn btn-primary btn-big', onclick: () => make(processMeeting) }, 'Make notes') : null,
       !running && !m.notes ? h('a', { class: 'btn btn-ghost', href: `#/record/${id}` }, 'Continue recording this meeting') : null,

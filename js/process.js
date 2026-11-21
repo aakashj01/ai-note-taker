@@ -7,6 +7,8 @@ import { meetingDuration } from './ui/dom.js';
 export const DEFAULT_MODEL = 'gemini-flash-latest';
 export const NO_KEY = 'Add your Gemini key in Settings';
 const jobs = new Map();
+const statusText = new Map();
+export const jobStatus = id => statusText.get(id) || '';
 const listeners = new Set();
 
 export const isRunning = id => jobs.has(id);
@@ -25,11 +27,11 @@ export function geminiMime(type) {
 let geminiFactory = createGemini;
 export function setGeminiFactory(fn) { geminiFactory = fn; } // tests
 
-async function client() {
+async function client(id) {
   const apiKey = await getSetting('apiKey', '');
   if (!apiKey) return null;
   const model = (await getSetting('model', DEFAULT_MODEL)) || DEFAULT_MODEL;
-  return geminiFactory({ apiKey, model });
+  return geminiFactory({ apiKey, model, onStatus: msg => { statusText.set(id, msg); emit(id); } });
 }
 
 function mergeSpeakers(old = {}, labels) {
@@ -50,7 +52,7 @@ async function run(id, work, { keepTranscript = false } = {}) {
   if (jobs.has(id)) return jobs.get(id);
   const job = (async () => {
     const m = await getMeeting(id);
-    const gemini = await client();
+    const gemini = await client(id);
     if (!gemini) {
       m.error = NO_KEY; m.status = m.notes ? 'ready' : 'failed';
       await saveMeeting(m);
@@ -88,7 +90,7 @@ async function run(id, work, { keepTranscript = false } = {}) {
     return latest;
   })();
   jobs.set(id, job);
-  try { return await job; } finally { jobs.delete(id); emit(id); }
+  try { return await job; } finally { jobs.delete(id); statusText.delete(id); emit(id); }
 }
 
 export function processMeeting(id) {

@@ -37,7 +37,9 @@ before(async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone'] });
   await context.route('https://generativelanguage.googleapis.com/**', route => {
     geminiCalls++;
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(CANNED) }] } }] }) });
+    route.fulfill({ status: 200, contentType: 'text/event-stream', body:
+      `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: 'thinking…', thought: true }] } }] })}\r\n\r\n` +
+      `data: ${JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(CANNED) }] } }] })}\r\n\r\n` });
   });
   page = await context.newPage();
   page.setDefaultTimeout(8000);
