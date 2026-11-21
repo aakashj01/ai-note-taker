@@ -106,6 +106,6 @@ export async function renderLibrary(root) {
     h('nav', { class: 'toolbar', 'aria-label': 'Actions' },
       h('label', { for: 'import-file', class: 'toolbar-btn', role: 'button' }, icon('import', 22), 'Import'),
       h('a', { href: '#/record', class: 'rec-btn', role: 'button', 'aria-label': 'Record' }),
-      h('span', {})),
+      h('a', { href: '#/todos', class: 'toolbar-btn end' }, icon('checklist', 22), 'To-dos')),
   );
 }

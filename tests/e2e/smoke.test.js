@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 7').waitFor();
+  await page.getByText('App version 8').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -112,6 +112,20 @@ test('search finds a meeting by a word in its notes', async () => {
     return new Promise(r => { const q = db.transaction('meetings').objectStore('meetings').getAll(); q.onsuccess = () => r(q.result.find(m => m.notes).id); });
   })));
   await page.getByText('The team discussed moving the launch date.').waitFor();
+});
+
+test('to-dos screen lists open to-dos, filters by person, ticks through to the meeting', async () => {
+  await page.goto(base);
+  await page.getByRole('link', { name: 'To-dos' }).click();
+  await page.getByText('Send the deck').waitFor();
+  await page.getByRole('radio', { name: 'Rahul' }).check();
+  await page.getByText('Send the deck').waitFor();
+  await page.getByRole('checkbox', { name: 'Done: Send the deck' }).check();
+  await page.getByRole('switch', { name: 'Show done' }).click();
+  await page.locator('.todo.done', { hasText: 'Send the deck' }).waitFor();
+  await page.locator('.todo-meeting-link').first().click();
+  assert.equal(await page.getByRole('checkbox', { name: 'Done: Send the deck' }).isChecked(), true);
+  await page.getByRole('checkbox', { name: 'Done: Send the deck' }).uncheck();
 });
 
 test('reload keeps the meeting', async () => {

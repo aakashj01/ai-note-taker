@@ -28,6 +28,7 @@ const PATHS = {
   waveform: 'M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2',
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   copy: 'M9 8h10a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h3',
+  checklist: 'M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
 };
 const FILLED = new Set(['play', 'pause']);
