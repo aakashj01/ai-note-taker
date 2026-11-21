@@ -5,6 +5,7 @@ import { renderMeeting } from './ui/meeting.js';
 import { renderSpeakers } from './ui/speakers.js';
 import { renderSettings } from './ui/settings.js';
 import { renderTodos } from './ui/todos.js';
+import { renderLog } from './ui/log.js';
 
 const root = document.getElementById('app');
 let cleanup = null;
@@ -21,6 +22,7 @@ async function route() {
   else if ((m = hash.match(/^\/record\/([^/]+)$/))) cleanup = await renderRecord(root, decodeURIComponent(m[1]));
   else if (hash === '/settings') cleanup = await renderSettings(root);
   else if (hash === '/todos') cleanup = await renderTodos(root);
+  else if (hash === '/log') cleanup = await renderLog(root);
   else if ((m = hash.match(/^\/m\/([^/]+)\/speakers$/))) cleanup = await renderSpeakers(root, decodeURIComponent(m[1]));
   else if ((m = hash.match(/^\/m\/([^/]+)$/))) cleanup = await renderMeeting(root, decodeURIComponent(m[1]));
   else location.hash = '#/';

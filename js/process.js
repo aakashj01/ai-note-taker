@@ -1,5 +1,6 @@
 // Runs the AI over a meeting and saves the result. Jobs survive screen re-renders.
-import { getMeeting, saveMeeting, getPartBlob, getSetting } from './db.js';
+import { getMeeting, saveMeeting, getPartBlob, getSetting, addLog } from './db.js';
+import { createLoggedFetch } from './apilog.js';
 import { createGemini } from './gemini.js';
 import { normalizeResult, transcriptToText } from './notes.js';
 import { meetingDuration } from './ui/dom.js';
@@ -24,6 +25,9 @@ export function geminiMime(type) {
   return t;
 }
 
+// Every Gemini call goes through this, so it shows up in Settings › API log.
+export const geminiFetch = createLoggedFetch({ save: addLog });
+
 let geminiFactory = createGemini;
 export function setGeminiFactory(fn) { geminiFactory = fn; } // tests
 
@@ -31,7 +35,7 @@ async function client(id) {
   const apiKey = await getSetting('apiKey', '');
   if (!apiKey) return null;
   const model = (await getSetting('model', DEFAULT_MODEL)) || DEFAULT_MODEL;
-  return geminiFactory({ apiKey, model, onStatus: msg => { statusText.set(id, msg); emit(id); } });
+  return geminiFactory({ apiKey, model, fetch: geminiFetch, onStatus: msg => { statusText.set(id, msg); emit(id); } });
 }
 
 function mergeSpeakers(old = {}, labels) {

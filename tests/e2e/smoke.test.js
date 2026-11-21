@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 9').waitFor();
+  await page.getByText('App version 10').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -191,4 +191,16 @@ test('theme: choosing Dark sets data-theme=dark and survives reload', async () =
   await page.goto(base + '#/settings');
   await page.getByRole('radio', { name: 'System' }).check();
   assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
+});
+
+test('settings shows today\'s API usage, and the log shows requests without the key', async () => {
+  await page.goto(base + '#/settings');
+  await page.getByText('1 of 20 requests').waitFor();
+  await page.getByRole('link', { name: 'API log' }).click();
+  await page.locator('.term').getByText('→ POST gemini-flash-latest:streamGenerateContent').first().waitFor();
+  await page.locator('.term').getByText(/← 200/).first().waitFor();
+  const all = await page.locator('.term').innerText();
+  assert.doesNotMatch(all, /test-key/);
+  await page.locator('.term-entry summary').first().click();
+  await page.locator('.term').getByText(/\[audio .* KB audio\/(mp4|webm)\]/).first().waitFor();
 });

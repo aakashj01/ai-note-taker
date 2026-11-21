@@ -110,6 +110,26 @@ mark { background: var(--hl); color: inherit; border-radius: 3px; padding: 0 1px
 .todo-meeting-link { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--label); margin: 0 4px 8px; }
 .todo-meeting-link .section-head { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-meeting-link .cell-sub { flex: none; }
+.usage-top { display: flex; justify-content: space-between; gap: 8px; }
+.usage-model { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; margin: 8px 0 6px; }
+.meter span { display: block; height: 100%; border-radius: 3px; background: var(--green); }
+.meter.high span { background: var(--orange); }
+.meter.full span { background: var(--red); }
+/* Terminal-style API log */
+.term { background: #0c0c0c; color: #d4d4d4; border-radius: var(--r); padding: 10px 0; font: 12px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0; overflow: hidden; }
+.term-entry { padding: 4px 12px; border-bottom: 1px solid #1f1f1f; }
+.term-entry:last-child { border-bottom: 0; }
+.term-entry summary { list-style: none; cursor: pointer; white-space: pre-wrap; word-break: break-word; }
+.term-entry summary::-webkit-details-marker { display: none; }
+.term-time { color: #6a9955; }
+.term-out { color: #9cdcfe; }
+.term-ok { color: #4ec9b0; }
+.term-err { color: #f48771; }
+.term-dim { color: #808080; }
+.term pre { margin: 6px 0 4px; white-space: pre-wrap; word-break: break-word; color: #ce9178; font: inherit; max-height: 50vh; overflow: auto; }
+.term-label { color: #c586c0; margin-top: 6px; }
+.term-empty { padding: 12px; color: #808080; }
 .section-foot { font-size: 13px; line-height: 18px; color: var(--label-2); margin: 7px 16px 0; letter-spacing: -0.08px; }
 .group { list-style: none; margin: 0; padding: 0; background: var(--cell); border-radius: var(--r); overflow: hidden; }
 .cell { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label); }

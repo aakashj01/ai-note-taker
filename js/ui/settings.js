@@ -1,6 +1,9 @@
 import { getSetting, setSetting } from '../db.js';
 import { listModels } from '../gemini.js';
-import { DEFAULT_MODEL } from '../process.js';
+import { DEFAULT_MODEL, geminiFetch } from '../process.js';
+import { listLogs } from '../db.js';
+import { usageToday, nextReset } from '../apilog.js';
+import { icon } from './dom.js';
 import { APP_VERSION } from '../version.js';
 import { h, header, toast, formatDate } from './dom.js';
 import { buildBackup, restoreBackup, BACKUP_NAME } from '../backup.js';
@@ -15,7 +18,7 @@ export async function renderSettings(root) {
   async function loadModels() {
     if (!key.value.trim()) return toast('Add your key first');
     try {
-      const names = await listModels({ apiKey: key.value.trim() });
+      const names = await listModels({ apiKey: key.value.trim(), fetch: geminiFetch });
       options.replaceChildren(...names.map(n => h('option', { value: n })));
       toast(`${names.length} models found. Tap the model field to pick one.`);
     } catch (e) { toast(e.message); }
@@ -68,6 +71,29 @@ export async function renderSettings(root) {
     },
   });
 
+  const dailyLimit = h('input', {
+    class: 'field', type: 'number', inputmode: 'numeric', min: 1, 'aria-label': 'Daily request limit',
+    value: String(await getSetting('dailyLimit', 20)), style: 'text-align:right;width:80px',
+    onchange: async e => { const n = Math.max(1, parseInt(e.target.value, 10) || 20); e.target.value = n; await setSetting('dailyLimit', n); drawUsage(); },
+  });
+  const usageBox = h('ul', { class: 'group' });
+  async function drawUsage() {
+    const limit = Math.max(1, parseInt(dailyLimit.value, 10) || 20);
+    const usage = Object.entries(usageToday(await listLogs()));
+    usageBox.replaceChildren(
+      ...(usage.length ? usage.map(([model, u]) => h('li', { class: 'cell usage' },
+        h('div', { class: 'cell-main' },
+          h('div', { class: 'usage-top' }, h('span', { class: 'usage-model' }, model), h('span', { class: 'cell-trail' }, `${u.requests} of ${limit} requests`)),
+          h('div', { class: 'meter' + (u.requests >= limit ? ' full' : u.requests / limit >= 0.75 ? ' high' : ''), role: 'meter', 'aria-valuemin': 0, 'aria-valuemax': limit, 'aria-valuenow': u.requests, 'aria-label': `${model} requests today` },
+            h('span', { style: `width:${Math.min(100, (u.requests / limit) * 100)}%` })),
+          h('div', { class: 'cell-sub' }, `${u.tokens.toLocaleString('en-IN')} tokens today`))))
+        : [h('li', { class: 'cell' }, h('div', { class: 'cell-main cell-sub' }, 'No requests yet today.'))]),
+      h('li', { class: 'cell' }, h('div', { class: 'cell-main' }, 'Daily limit per model'), dailyLimit),
+      h('li', {}, h('a', { class: 'cell', href: '#/log' }, h('div', { class: 'cell-main' }, 'API log'), h('div', { class: 'cell-trail' }, icon('chevron', 16)))));
+  }
+  drawUsage();
+  const resetAt = nextReset().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+
   async function save() {
     await setSetting('apiKey', key.value.trim());
     await setSetting('model', model.value.trim() || DEFAULT_MODEL);
@@ -91,6 +117,10 @@ export async function renderSettings(root) {
             h('button', { class: 'btn btn-plain btn-small', type: 'button', onclick: loadModels }, 'Browse'))),
         h('p', { class: 'section-foot' }, 'Get a free key from ', h('a', { href: 'https://aistudio.google.com/apikey', target: '_blank', rel: 'noopener' }, 'Google AI Studio'),
           '. It stays on this phone. If the model is busy, the app switches to gemini-flash-lite-latest by itself.')),
+      h('section', { class: 'section' },
+        h('h2', { class: 'section-head' }, 'API usage'),
+        usageBox,
+        h('p', { class: 'section-foot' }, `Counts requests made by this app on this phone. Resets at ${resetAt} your time (midnight in California). Google doesn't share your exact remaining quota, so check AI Studio for your real limit.`)),
       h('section', { class: 'section' },
         h('h2', { class: 'section-head' }, 'Privacy'),
         h('p', { class: 'summary' }, 'On the free tier, Google may use uploaded audio to improve its products. Recordings and notes are stored only on this phone.')),

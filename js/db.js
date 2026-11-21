@@ -5,13 +5,16 @@ let dbPromise = null;
 export function openDb() {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
+      const req = indexedDB.open(DB_NAME, 2);
+      req.onupgradeneeded = e => {
         const db = req.result;
-        db.createObjectStore('meetings', { keyPath: 'id' });
-        const chunks = db.createObjectStore('chunks', { keyPath: ['partId', 'seq'] });
-        chunks.createIndex('partId', 'partId');
-        db.createObjectStore('settings');
+        if (e.oldVersion < 1) {
+          db.createObjectStore('meetings', { keyPath: 'id' });
+          const chunks = db.createObjectStore('chunks', { keyPath: ['partId', 'seq'] });
+          chunks.createIndex('partId', 'partId');
+          db.createObjectStore('settings');
+        }
+        if (e.oldVersion < 2) db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => { dbPromise = null; reject(req.error); };
@@ -86,5 +89,34 @@ export async function getSetting(key, fallback) {
 export async function setSetting(key, value) {
   const tx = (await openDb()).transaction('settings', 'readwrite');
   tx.objectStore('settings').put(value, key);
+  return done(tx);
+}
+
+// API request log (newest 200 kept).
+const LOG_MAX = 200;
+export async function addLog(entry) {
+  const tx = (await openDb()).transaction('logs', 'readwrite');
+  const store = tx.objectStore('logs');
+  store.add(entry);
+  const countReq = store.count();
+  countReq.onsuccess = () => {
+    let extra = countReq.result - LOG_MAX;
+    if (extra <= 0) return;
+    store.openCursor().onsuccess = ev => {
+      const cur = ev.target.result;
+      if (cur && extra-- > 0) { cur.delete(); cur.continue(); }
+    };
+  };
+  return done(tx);
+}
+
+export async function listLogs() {
+  const tx = (await openDb()).transaction('logs');
+  return (await request(tx.objectStore('logs').getAll())).reverse();
+}
+
+export async function clearLogs() {
+  const tx = (await openDb()).transaction('logs', 'readwrite');
+  tx.objectStore('logs').clear();
   return done(tx);
 }
