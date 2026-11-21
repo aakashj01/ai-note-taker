@@ -112,3 +112,13 @@ test('wake lock requested on start, re-requested on visible, released on stop', 
   await s.rec.stop();
   assert.ok(s.log.released >= 1);
 });
+
+test('exposes the current part id and mime type while recording', async () => {
+  const s = setup();
+  assert.equal(s.rec.currentPartId, null);
+  await s.rec.start(0);
+  assert.match(s.rec.currentPartId, /^[0-9a-f-]{36}$/);
+  assert.equal(s.rec.currentMimeType, 'audio/mp4');
+  s.mr().emit('a');
+  assert.equal(s.log.chunks[0].partId, s.rec.currentPartId);
+});

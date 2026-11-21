@@ -58,6 +58,8 @@ export function createRecorder({
 
   return {
     get state() { return state; },
+    get currentPartId() { return rec ? part.id : null; },
+    get currentMimeType() { return rec ? part.mimeType : null; },
     elapsed() { return (part?.startOffset || 0) + (rec ? partSeconds() : part?.duration || 0); },
 
     async start(meetingTimeOffset) {

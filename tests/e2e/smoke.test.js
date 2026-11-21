@@ -1,0 +1,109 @@
+// End-to-end: real Chromium with a fake microphone, Gemini replaced by a canned reply.
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize } from 'node:path';
+import { createRequire } from 'node:module';
+
+const { chromium } = createRequire(import.meta.url)('playwright');
+const ROOT = new URL('../..', import.meta.url).pathname;
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+
+const CANNED = {
+  transcript: [
+    { start: '00:00', end: '00:02', speaker: 'Speaker 1', text: 'Chalo, launch ki baat karte hain' },
+    { start: '00:02', end: '00:04', speaker: 'Speaker 2', text: 'Main Friday tak deck bhej dunga' },
+  ],
+  summary: 'The team discussed moving the launch date.',
+  key_ideas: [{ text: 'Launch moves to next month', source: '00:01' }],
+  todos: [{ text: 'Send the deck', owner_speaker: 'Speaker 2', due: 'Friday', source: '00:02' }],
+};
+
+let server, browser, page, base, geminiCalls = 0;
+
+before(async () => {
+  server = createServer(async (req, res) => {
+    const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+    try {
+      const body = await readFile(join(ROOT, path === '/' ? 'index.html' : path));
+      res.writeHead(200, { 'content-type': TYPES[extname(path)] || (path === '/' ? 'text/html' : 'application/octet-stream') });
+      res.end(body);
+    } catch { res.writeHead(404); res.end(); }
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  base = `http://127.0.0.1:${server.address().port}/`;
+  browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone'] });
+  await context.route('https://generativelanguage.googleapis.com/**', route => {
+    geminiCalls++;
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(CANNED) }] } }] }) });
+  });
+  page = await context.newPage();
+  page.setDefaultTimeout(8000);
+  page.on('pageerror', e => { throw e; });
+  await page.goto(base);
+});
+
+after(async () => { await browser?.close(); server?.close(); });
+
+async function recordFor(ms) {
+  await page.getByRole('button', { name: 'Record' }).click();
+  await page.getByRole('button', { name: 'Start recording' }).click();
+  await page.getByRole('button', { name: 'Stop' }).waitFor();
+  await page.waitForTimeout(ms);
+  await page.getByRole('button', { name: 'Stop' }).click();
+  await page.getByRole('button', { name: 'Make notes' }).waitFor();
+}
+
+test('no key shows settings prompt and does not call Gemini', async () => {
+  await recordFor(1500);
+  await page.getByRole('button', { name: 'Make notes' }).click();
+  await page.getByText('Add your Gemini key in Settings').waitFor();
+  assert.equal(geminiCalls, 0);
+});
+
+test('record → stop → make notes shows summary, to-do and idea', async () => {
+  await page.goto(base + '#/settings');
+  await page.getByLabel('Gemini API key').fill('test-key');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('link', { name: 'Back' }).click();
+  await recordFor(3000);
+  await page.getByRole('button', { name: 'Make notes' }).click();
+  // first successful run goes to the speaker naming screen
+  await page.getByLabel('Name for Speaker 2').waitFor();
+  assert.equal(geminiCalls, 1);
+  await page.getByRole('button', { name: 'Save names' }).click();
+  await page.getByText('The team discussed moving the launch date.').waitFor();
+  await page.getByText('Launch moves to next month').waitFor();
+  await page.getByText('Send the deck').waitFor();
+});
+
+test('naming Speaker 2 "Rahul" updates the to-do owner', async () => {
+  await page.getByRole('link', { name: 'Name speakers' }).click();
+  await page.getByLabel('Name for Speaker 2').fill('Rahul');
+  await page.getByRole('button', { name: 'Save names' }).click();
+  await page.locator('.todo', { hasText: 'Send the deck' }).getByText('Rahul').waitFor();
+});
+
+test('reload keeps the meeting', async () => {
+  await page.reload();
+  await page.getByText('The team discussed moving the launch date.').waitFor();
+  await page.goto(base);
+  assert.equal(await page.locator('.meeting-card').count(), 2);
+});
+
+test('layout has no horizontal scroll at 390px width', async () => {
+  for (const hash of ['#/', '#/settings']) {
+    await page.goto(base + hash);
+    await page.waitForTimeout(200);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), hash);
+  }
+  await page.goto(base + '#/');
+  const cards = page.locator('.meeting-card');
+  await cards.first().click();
+  await page.getByRole('button', { name: 'Share' }).waitFor();
+  await page.locator('details.transcript summary').click();
+  await page.screenshot({ path: process.env.SHOT || '/dev/null' });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), 'meeting');
+});
