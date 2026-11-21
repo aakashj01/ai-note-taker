@@ -1,7 +1,7 @@
 import { getMeeting, saveMeeting, deleteMeeting } from '../db.js';
-import { formatTime, displaySpeaker, toMarkdown } from '../notes.js';
+import { formatTime, displaySpeaker, sectionText, toChatText } from '../notes.js';
 import { processMeeting, regenerateNotes, isRunning, onJobChange, jobStatus, NO_KEY } from '../process.js';
-import { h, header, icon, toast, formatDate, meetingDuration } from './dom.js';
+import { h, header, icon, toast, copyText, formatDate, meetingDuration } from './dom.js';
 import { createPlayer } from './player.js';
 
 export async function renderMeeting(root, id) {
@@ -35,12 +35,21 @@ export async function renderMeeting(root, id) {
 
   const sourceBtn = t => h('button', { class: 'src-btn', 'aria-label': 'Show source', title: `Hear it at ${formatTime(t)}`, onclick: () => showSource(t) }, icon('waveform', 20));
   const section = (head, ...kids) => h('section', { class: 'section' }, head ? h('h2', { class: 'section-head' }, head) : null, kids);
+  // Section with a Copy button that copies just that part, formatted for WhatsApp/chat.
+  const copySection = (head, which, ...kids) => h('section', { class: 'section' },
+    h('div', { class: 'section-bar' },
+      h('h2', { class: 'section-head' }, head),
+      h('button', {
+        class: 'copy-btn', 'aria-label': `Copy ${head.toLowerCase()}`,
+        onclick: async () => toast(await copyText(sectionText(m, which)) ? `${head} copied` : 'Could not copy'),
+      }, icon('copy', 16), 'Copy')),
+    kids);
 
   function notesView() {
     const n = m.notes;
     return [
-      section('Summary', h('p', { class: 'summary' }, n.summary || 'No summary.')),
-      section('To-dos', n.todos.length
+      copySection('Summary', 'summary', h('p', { class: 'summary' }, n.summary || 'No summary.')),
+      copySection('To-dos', 'todos', n.todos.length
         ? h('ul', { class: 'group' }, n.todos.map(t => h('li', { class: 'cell todo' + (t.done ? ' done' : '') },
             h('input', { type: 'checkbox', class: 'check', checked: t.done, 'aria-label': `Done: ${t.text}`, onchange: e => { t.done = e.target.checked; save(); draw(); } }),
             h('div', { class: 'cell-main todo-text' },
@@ -49,7 +58,7 @@ export async function renderMeeting(root, id) {
               t.due ? h('span', { class: 'todo-due' }, 'Due ' + t.due) : null),
             sourceBtn(t.source))))
         : h('p', { class: 'summary' }, 'No to-dos were mentioned.')),
-      section('Key ideas', n.keyIdeas.length
+      copySection('Key ideas', 'ideas', n.keyIdeas.length
         ? h('ul', { class: 'group' }, n.keyIdeas.map(k => h('li', { class: 'cell idea' },
             h('span', { class: 'dot' }), h('div', { class: 'cell-main' }, k.text), sourceBtn(k.source))))
         : h('p', { class: 'summary' }, 'No key ideas found.')),
@@ -112,12 +121,12 @@ export async function renderMeeting(root, id) {
   }
 
   async function share() {
-    const text = toMarkdown(m);
+    const text = toChatText(m);
     try {
-      if (navigator.share) await navigator.share({ title: m.title, text });
-      else { await navigator.clipboard.writeText(text); toast('Notes copied'); }
+      if (navigator.share) await navigator.share({ text });
+      else toast(await copyText(text) ? 'All notes copied' : 'Could not copy');
     } catch (e) {
-      if (e.name !== 'AbortError') { try { await navigator.clipboard.writeText(text); toast('Notes copied'); } catch { toast('Could not share'); } }
+      if (e.name !== 'AbortError') toast(await copyText(text) ? 'All notes copied' : 'Could not share');
     }
   }
 

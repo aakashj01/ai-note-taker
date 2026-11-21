@@ -68,3 +68,25 @@ export function toMarkdown(meeting) {
   for (const k of notes?.keyIdeas || []) lines.push(`- ${k.text}`);
   return lines.join('\n') + '\n';
 }
+
+// Chat-friendly text (WhatsApp/Slack/Teams): *bold* headings, ☐/☑ for to-dos, no Markdown #.
+const HEADS = { summary: 'Summary', todos: 'To-dos', ideas: 'Key ideas' };
+
+export function sectionText(meeting, which) {
+  const { notes = {}, speakers = {} } = meeting;
+  let lines = [];
+  if (which === 'summary') lines = notes.summary ? [notes.summary] : [];
+  if (which === 'todos') {
+    lines = (notes.todos || []).map(t => {
+      const owner = t.owner ? `${displaySpeaker(t.owner, speakers)}: ` : '';
+      return `${t.done ? '☑' : '☐'} ${owner}${t.text}${t.due ? ` (due ${t.due})` : ''}`;
+    });
+  }
+  if (which === 'ideas') lines = (notes.keyIdeas || []).map(k => `• ${k.text}`);
+  return `*${HEADS[which]}*\n${lines.length ? lines.join('\n') : 'None'}`;
+}
+
+export function toChatText(meeting) {
+  const date = new Date(meeting.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return [`*${meeting.title}*\n${date}`, ...['summary', 'todos', 'ideas'].map(w => sectionText(meeting, w))].join('\n\n');
+}

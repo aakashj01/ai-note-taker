@@ -34,7 +34,7 @@ before(async () => {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}/`;
   browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone'] });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone', 'clipboard-read', 'clipboard-write'] });
   await context.route('https://generativelanguage.googleapis.com/**', route => {
     geminiCalls++;
     route.fulfill({ status: 200, contentType: 'text/event-stream', body:
@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 4').waitFor();
+  await page.getByText('App version 5').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -87,6 +87,16 @@ test('naming Speaker 2 "Rahul" updates the to-do owner', async () => {
   await page.getByLabel('Name for Speaker 2').fill('Rahul');
   await page.getByRole('button', { name: 'Save names' }).click();
   await page.locator('.todo', { hasText: 'Send the deck' }).getByText('Rahul').waitFor();
+});
+
+test('each section can be copied on its own for WhatsApp', async () => {
+  await page.getByRole('button', { name: 'Copy summary' }).click();
+  await page.getByText('Summary copied').waitFor();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '*Summary*\nThe team discussed moving the launch date.');
+  await page.getByRole('button', { name: 'Copy to-dos' }).click();
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^\*To-dos\*\n☐ Rahul: Send the deck \(due Friday\)$/);
+  await page.getByRole('button', { name: 'Copy key ideas' }).click();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '*Key ideas*\n• Launch moves to next month');
 });
 
 test('reload keeps the meeting', async () => {

@@ -86,3 +86,24 @@ test('transcriptToText keeps speaker labels and adds a name legend', async () =>
   assert.match(txt, /\[0:05\] Speaker 2: hi/);
   assert.match(txt, /Speaker 2 = Rahul/);
 });
+
+test('chat text: each section on its own, WhatsApp-style', async () => {
+  const { sectionText, toChatText } = await import('../../js/notes.js');
+  const r = normalizeResult(raw(), 600);
+  r.notes.todos[1].done = true;
+  const m = { title: 'Weekly sync', createdAt: Date.UTC(2026, 10, 21, 6), notes: r.notes, speakers: { 'Speaker 2': 'Rahul' } };
+  assert.equal(sectionText(m, 'summary'), '*Summary*\nTeam agreed to move the launch.');
+  assert.equal(sectionText(m, 'todos'), '*To-dos*\n☐ Rahul: send deck (due Fri)\n☑ Speaker 1: book venue');
+  assert.equal(sectionText(m, 'ideas'), '*Key ideas*\n• Pricing stays at ₹499');
+  const all = toChatText(m);
+  assert.match(all, /^\*Weekly sync\*\n21 Nov 2026\n\n\*Summary\*/);
+  assert.match(all, /\*To-dos\*\n☐ Rahul/);
+  assert.match(all, /\*Key ideas\*\n• Pricing/);
+  assert.doesNotMatch(all, /#/);
+});
+
+test('chat text says so when a section is empty', async () => {
+  const { sectionText } = await import('../../js/notes.js');
+  const m = { notes: { summary: '', todos: [], keyIdeas: [] }, speakers: {} };
+  assert.equal(sectionText(m, 'todos'), '*To-dos*\nNone');
+});

@@ -65,6 +65,14 @@ button { font: inherit; letter-spacing: inherit; color: inherit; }
 /* ---------- Inset grouped lists ---------- */
 .section { margin-top: 22px; }
 .section-head { font-size: 20px; line-height: 25px; font-weight: 600; letter-spacing: .38px; margin: 0 4px 8px; }
+.section-bar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.section-bar .section-head { margin-right: 0; }
+.copy-btn {
+  display: inline-flex; align-items: center; gap: 5px; border: 0; cursor: pointer;
+  background: var(--tint-soft); color: var(--tint); font-size: 15px; font-weight: 600;
+  min-height: 30px; padding: 0 12px 0 10px; border-radius: 15px; margin: 0 4px 8px 0;
+}
+.copy-btn:active { opacity: .6; }
 .section-foot { font-size: 13px; line-height: 18px; color: var(--label-2); margin: 7px 16px 0; letter-spacing: -0.08px; }
 .group { list-style: none; margin: 0; padding: 0; background: var(--cell); border-radius: var(--r); overflow: hidden; }
 .cell { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label); }

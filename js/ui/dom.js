@@ -27,6 +27,7 @@ const PATHS = {
   pause: 'M8 5h3v14H8zM13 5h3v14h-3z',
   waveform: 'M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2',
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+  copy: 'M9 8h10a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h3',
   sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z',
 };
 const FILLED = new Set(['play', 'pause']);
@@ -66,6 +67,18 @@ export function header(title, { back, backLabel = 'Back', actions = [], large = 
   const frag = document.createDocumentFragment();
   frag.append(bar, big);
   return frag;
+}
+
+// Clipboard write that also works where the async API is missing or refused.
+export async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* fall back */ }
+  const ta = h('textarea', { value: text, readonly: true, style: 'position:fixed;opacity:0;top:0' });
+  document.body.append(ta);
+  ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove();
+  return ok;
 }
 
 export function toast(msg) {
