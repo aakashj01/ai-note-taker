@@ -104,6 +104,6 @@ test('layout has no horizontal scroll at 390px width', async () => {
   await cards.first().click();
   await page.getByRole('button', { name: 'Share' }).waitFor();
   await page.locator('details.transcript summary').click();
-  await page.screenshot({ path: process.env.SHOT || '/dev/null' });
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), 'meeting');
 });
