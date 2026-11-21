@@ -36,3 +36,11 @@ test('prompt carries the question and asks for honesty; schema has sources', () 
   assert.match(p, /not in the meetings/i);
   assert.ok(ASK_SCHEMA.properties.sources);
 });
+
+test('one huge meeting is trimmed, not dropped', () => {
+  const huge = mk('big', 5, 10);
+  huge.notes.summary = 'x'.repeat(5000);
+  const ctx = buildAskContext([huge], 1000);
+  assert.match(ctx, /id=big/);
+  assert.ok(ctx.length <= 1000);
+});

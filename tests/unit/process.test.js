@@ -44,3 +44,18 @@ test('notes-only fallback sets a notice and keeps going', async () => {
   assert.equal(m.status, 'ready');
   assert.match(m.notice, /too long for a full transcript/);
 });
+
+test('a meeting whose recording is not on this phone says so', async () => {
+  await setSetting('apiKey', 'K');
+  await saveMeeting({ ...base('nm'), audioMissing: true });
+  setGeminiFactory(() => ({ processAudio: async () => { throw new Error('should not be called'); } }));
+  const m = await processMeeting('nm');
+  assert.match(m.error, /recording isn.t on this phone/);
+});
+
+test('ask errors talk about answering, not making notes', async () => {
+  const { askMeetings } = await import('../../js/process.js');
+  await saveMeeting({ ...base('ready'), status: 'ready', notes: { summary: 's', todos: [], keyIdeas: [] } });
+  setGeminiFactory(() => ({ ask: async () => { throw new TypeError('Load failed'); } }));
+  await assert.rejects(askMeetings('q'), e => /answering/.test(e.message) && !/Make notes/.test(e.message));
+});

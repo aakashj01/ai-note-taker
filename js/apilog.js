@@ -67,8 +67,12 @@ export function summarizeResponse(text = '') {
   return { text: clip(acc.text), thoughts: clip(acc.thoughts), usage: acc.usage, error: acc.error };
 }
 
-export function createLoggedFetch({ fetch = (...a) => globalThis.fetch(...a), save, now = () => Date.now() }) {
-  const keep = e => Promise.resolve(save(e)).catch(() => {});
+export function createLoggedFetch({ fetch = (...a) => globalThis.fetch(...a), save, count = null, now = () => Date.now() }) {
+  const keep = e => {
+    Promise.resolve(save(e)).catch(() => {});
+    const d = count && usageDelta(e);
+    if (d) Promise.resolve(count(d)).catch(() => {});
+  };
   return async (url, init = {}) => {
     const at = now();
     const request = summarizeRequest(url, init);
@@ -90,7 +94,15 @@ export function createLoggedFetch({ fetch = (...a) => globalThis.fetch(...a), sa
 
 const LA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' });
 const LA_HOUR = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hourCycle: 'h23' });
-const laDay = t => LA.format(new Date(t));
+export const laDay = t => LA.format(new Date(t));
+
+// What one logged request adds to today's usage (kept separately from the log, so clearing
+// or trimming the log never resets the count). 429s were refused, so they don't count.
+export function usageDelta(e) {
+  if (!GENERATE.has(e.request?.action) || !e.status || e.status === 429) return null;
+  const tokens = e.usage ? (e.usage.in || 0) + (e.usage.out || 0) + (e.usage.thoughts || 0) : 0;
+  return { day: laDay(e.at), model: e.request.model || '?', tokens };
+}
 
 export function usageToday(logs, now = Date.now()) {
   const today = laDay(now);

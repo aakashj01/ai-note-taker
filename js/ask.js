@@ -35,7 +35,8 @@ export function buildAskContext(meetings, limitChars = 400000) {
   const blocks = ready.map(m => ({ notes: notesBlock(m), transcript: transcriptBlock(m) }));
   const size = () => blocks.reduce((n, b) => n + b.notes.length + (b.transcript ? b.transcript.length + 1 : 0) + 2, 0);
   for (let i = blocks.length - 1; i >= 0 && size() > limitChars; i--) blocks[i].transcript = '';
-  while (blocks.length && size() > limitChars) blocks.pop();
+  while (blocks.length > 1 && size() > limitChars) blocks.pop();
+  if (blocks.length && size() > limitChars) blocks[0].notes = blocks[0].notes.slice(0, Math.max(0, limitChars - 20)) + '\n[trimmed]';
   return blocks.map(b => (b.transcript ? `${b.notes}\n${b.transcript}` : b.notes)).join('\n\n');
 }
 

@@ -1,5 +1,5 @@
 // Runs the AI over a meeting and saves the result. Jobs survive screen re-renders.
-import { getMeeting, saveMeeting, getPartBlob, getSetting, addLog } from './db.js';
+import { getMeeting, saveMeeting, getPartBlob, getSetting, addLog, addUsage } from './db.js';
 import { createLoggedFetch } from './apilog.js';
 import { EMPTY_PEOPLE } from './people.js';
 import { buildAskContext } from './ask.js';
@@ -29,7 +29,7 @@ export function geminiMime(type) {
 }
 
 // Every Gemini call goes through this, so it shows up in Settings › API log.
-export const geminiFetch = createLoggedFetch({ save: addLog });
+export const geminiFetch = createLoggedFetch({ save: addLog, count: addUsage });
 
 let geminiFactory = createGemini;
 export function setGeminiFactory(fn) { geminiFactory = fn; } // tests
@@ -47,9 +47,11 @@ function mergeSpeakers(old = {}, labels) {
   return out;
 }
 
-function friendlyError(e) {
+function friendlyError(e, what = 'notes') {
   if (e instanceof TypeError || /load failed|failed to fetch|networkerror|network connection/i.test(e?.message || '')) {
-    return 'Connection lost while making notes (was the app closed, or the internet off?). Keep the app open and tap "Make notes" to try again.';
+    return what === 'ask'
+      ? 'Connection lost while answering your question (was the app closed, or the internet off?). Keep the app open and ask again.'
+      : 'Connection lost while making notes (was the app closed, or the internet off?). Keep the app open and tap "Make notes" to try again.';
   }
   return e?.message || String(e);
 }
@@ -103,6 +105,7 @@ async function run(id, work, { keepTranscript = false } = {}) {
 
 export function processMeeting(id) {
   return run(id, async (m, gemini) => {
+    if (m.audioMissing) throw new Error('This meeting\'s recording isn\'t on this phone (it was restored from a backup without recordings), so notes can\'t be made from audio. Regenerate notes still works from the transcript.');
     const parts = await Promise.all(m.parts.map(async p => ({
       blob: await getPartBlob(p.id, p.mimeType),
       mimeType: geminiMime(p.mimeType),
@@ -146,6 +149,6 @@ export async function askMeetings(question, onStatus = () => {}) {
   try {
     return await gemini.ask(question, context);
   } catch (e) {
-    throw new Error(friendlyError(e));
+    throw new Error(friendlyError(e, 'ask'));
   }
 }

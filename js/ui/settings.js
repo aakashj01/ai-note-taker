@@ -1,12 +1,12 @@
 import { getSetting, setSetting } from '../db.js';
 import { listModels } from '../gemini.js';
 import { DEFAULT_MODEL, geminiFetch } from '../process.js';
-import { listLogs } from '../db.js';
-import { usageToday, nextReset } from '../apilog.js';
+import { getUsage } from '../db.js';
+import { nextReset, laDay } from '../apilog.js';
 import { icon } from './dom.js';
 import { APP_VERSION } from '../version.js';
 import { h, header, toast, formatDate } from './dom.js';
-import { buildBackup, restoreBackup, BACKUP_NAME } from '../backup.js';
+import { buildBackup, restoreBackup, shareOrDownload, BACKUP_NAME } from '../backup.js';
 import { THEMES, currentTheme, applyTheme } from '../theme.js';
 
 export async function renderSettings(root) {
@@ -37,29 +37,40 @@ export async function renderSettings(root) {
     onclick: async () => { includeAudio = !includeAudio; audioSwitch.setAttribute('aria-checked', String(includeAudio)); await setSetting('backupAudio', includeAudio); },
   });
 
+  let prepared = null; // kept when Safari refuses the share because building took too long
+  const download = file => {
+    const a = h('a', { href: URL.createObjectURL(file), download: BACKUP_NAME });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  };
   async function backUp(e) {
     const btn = e.currentTarget;
-    btn.disabled = true; btn.textContent = 'Preparing backup…';
     try {
-      const { blob, count } = await buildBackup({ includeAudio });
-      const file = new File([blob], BACKUP_NAME, { type: 'application/json' });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file] });
-      } else {
-        const a = h('a', { href: URL.createObjectURL(file), download: BACKUP_NAME });
-        document.body.append(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      let file = prepared, count = prepared?.count;
+      if (!file) {
+        btn.disabled = true; btn.textContent = 'Preparing backup…';
+        const built = await buildBackup({ includeAudio });
+        file = new File([built.blob], BACKUP_NAME, { type: 'application/octet-stream' });
+        count = file.count = built.count;
       }
+      const how = await shareOrDownload(file, { canShare: f => navigator.canShare?.(f), share: navigator.share && (d => navigator.share(d)), download });
+      if (how === 'needs-tap') {
+        prepared = file;
+        btn.disabled = false; btn.textContent = 'Backup ready. Tap to save it';
+        return;
+      }
+      prepared = null;
       await setSetting('lastBackup', Date.now());
       await showLast();
       toast(`Backed up ${count} meeting${count === 1 ? '' : 's'}`);
     } catch (err) {
       if (err.name !== 'AbortError') toast('Backup failed: ' + err.message);
-    } finally { btn.disabled = false; btn.textContent = 'Back up now'; }
+    }
+    if (!prepared) { btn.disabled = false; btn.textContent = 'Back up now'; }
   }
 
   const restoreInput = h('input', {
-    type: 'file', id: 'restore-file', accept: 'application/json,.json', class: 'visually-hidden',
+    type: 'file', id: 'restore-file', class: 'visually-hidden', tabindex: '-1',
     onchange: async e => {
       const f = e.target.files?.[0];
       e.target.value = '';
@@ -79,7 +90,7 @@ export async function renderSettings(root) {
   const usageBox = h('ul', { class: 'group' });
   async function drawUsage() {
     const limit = Math.max(1, parseInt(dailyLimit.value, 10) || 20);
-    const usage = Object.entries(usageToday(await listLogs()));
+    const usage = Object.entries(await getUsage(laDay(Date.now())));
     usageBox.replaceChildren(
       ...(usage.length ? usage.map(([model, u]) => h('li', { class: 'cell usage' },
         h('div', { class: 'cell-main' },
@@ -130,7 +141,7 @@ export async function renderSettings(root) {
         h('ul', { class: 'group' },
           h('li', { class: 'cell' }, h('div', { class: 'cell-main' }, 'Include recordings'), audioSwitch),
           h('li', {}, h('button', { class: 'cell action', onclick: backUp }, 'Back up now')),
-          h('li', {}, h('label', { class: 'cell action', for: 'restore-file', role: 'button' }, 'Restore from backup'))),
+          h('li', {}, h('button', { class: 'cell action', onclick: () => restoreInput.click() }, 'Restore from backup'))),
         restoreInput,
         lastBackup),
       h('p', { class: 'section-foot', style: 'text-align:center' }, `App version ${APP_VERSION}`)),

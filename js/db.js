@@ -16,7 +16,13 @@ export function openDb() {
         }
         if (e.oldVersion < 2) db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true });
       };
-      req.onsuccess = () => resolve(req.result);
+      // Another open copy of the app on old code would block the upgrade: it closes itself below.
+      req.onblocked = () => {};
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onversionchange = () => { db.close(); dbPromise = null; };
+        resolve(db);
+      };
       req.onerror = () => { dbPromise = null; reject(req.error); };
     });
   }
@@ -119,4 +125,34 @@ export async function clearLogs() {
   const tx = (await openDb()).transaction('logs', 'readwrite');
   tx.objectStore('logs').clear();
   return done(tx);
+}
+
+// Restore writes every meeting and its audio in ONE transaction: all or nothing.
+export async function putRestore(entries) {
+  const tx = (await openDb()).transaction(['meetings', 'chunks'], 'readwrite');
+  const meetings = tx.objectStore('meetings'), chunks = tx.objectStore('chunks');
+  for (const { meeting, audio } of entries) {
+    meetings.put(meeting);
+    for (const { partId, blob } of audio) chunks.put({ partId, seq: 0, blob });
+  }
+  return done(tx);
+}
+
+// Per-day API usage counter (America/Los_Angeles day, same as Google's reset).
+export async function addUsage({ day, model, tokens }) {
+  const tx = (await openDb()).transaction('settings', 'readwrite');
+  const store = tx.objectStore('settings');
+  const key = `usage:${day}`;
+  const get = store.get(key);
+  get.onsuccess = () => {
+    const u = get.result || {};
+    const m = u[model] || { requests: 0, tokens: 0 };
+    u[model] = { requests: m.requests + 1, tokens: m.tokens + (tokens || 0) };
+    store.put(u, key);
+  };
+  return done(tx);
+}
+
+export async function getUsage(day) {
+  return getSetting(`usage:${day}`, {});
 }

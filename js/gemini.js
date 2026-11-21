@@ -113,7 +113,7 @@ export function createGemini({
       buf = await res.text();
     }
     buf.split(/\r?\n/).forEach(onLine);
-    if (!text) throw new GeminiError(`Gemini returned no notes${block ? ` (blocked: ${block})` : ''}.`);
+    if (!text) throw new GeminiError(`Gemini returned an empty answer${block ? ` (blocked: ${block})` : ''}. Try again.`);
     try {
       return JSON.parse(text);
     } catch {

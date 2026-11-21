@@ -77,7 +77,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 14').waitFor();
+  await page.getByText('App version 15').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -141,7 +141,7 @@ test('to-dos screen lists open to-dos, filters by person, ticks through to the m
 test('backup downloads one fixed-name file, and restoring it keeps existing meetings', async () => {
   await page.goto(base + '#/settings');
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Back up now' }).click()]);
-  assert.equal(download.suggestedFilename(), 'meeting-notes-backup.json');
+  assert.equal(download.suggestedFilename(), 'meeting-notes-backup.mnotes');
   const file = await download.path();
   await page.getByText(/Last backup:/).waitFor();
   await page.locator('#restore-file').setInputFiles(file);

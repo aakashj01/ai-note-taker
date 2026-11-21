@@ -87,3 +87,26 @@ test('log store keeps the newest 200', async () => {
   assert.equal(logs.length, 200);
   assert.equal(logs[0].at, 204);
 });
+
+test('usage is kept in its own daily counter, so clearing the log does not reset it', async () => {
+  const { usageDelta, laDay } = await import('../../js/apilog.js');
+  const { addUsage, getUsage } = await import('../../js/db.js');
+  const at = Date.parse('2026-11-21T12:00:00Z');
+  const entry = { at, status: 200, usage: { in: 10, out: 5, thoughts: 1 }, request: { model: 'm', action: 'streamGenerateContent' } };
+  assert.deepEqual(usageDelta(entry), { day: '2026-11-21', model: 'm', tokens: 16 });
+  assert.equal(usageDelta({ ...entry, status: 429 }), null);
+  assert.equal(usageDelta({ ...entry, request: { model: 'm', action: 'file-status' } }), null);
+  await addUsage(usageDelta(entry));
+  await addUsage(usageDelta(entry));
+  await clearLogs();
+  assert.deepEqual(await getUsage(laDay(at)), { m: { requests: 2, tokens: 32 } });
+});
+
+test('logged fetch also counts usage', async () => {
+  const counted = [];
+  const lf = createLoggedFetch({ fetch: async () => new Response('{}', { status: 200 }), save: async () => {}, count: async d => { counted.push(d); } });
+  await lf('https://generativelanguage.googleapis.com/v1beta/models/m:generateContent', { method: 'POST', body: '{}' });
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(counted.length, 1);
+  assert.equal(counted[0].model, 'm');
+});
