@@ -42,6 +42,8 @@ export function normalizeResult(raw, durationSec) {
       .map(t => ({ text: str(t.text), owner: str(t.owner_speaker) || null, due: str(t.due) || null, source: clamp(t.source), done: false })),
     highlights: arr(raw.highlights).filter(x => x && str(x.text))
       .map(x => ({ time: clamp(x.time), text: str(x.text) })),
+    extraSections: arr(raw.extra_sections).filter(x => x && str(x.title))
+      .map(x => ({ title: str(x.title), items: arr(x.items).map(str).filter(Boolean) })),
   };
   return { transcript, notes, speakers };
 }
@@ -85,12 +87,19 @@ export function sectionText(meeting, which) {
     });
   }
   if (which === 'ideas') lines = (notes.keyIdeas || []).map(k => `• ${k.text}`);
+  if (which.startsWith('extra:')) {
+    const sec = (notes.extraSections || [])[Number(which.slice(6))];
+    if (!sec) return '';
+    const items = sec.items.map(i => `• ${i}`);
+    return `*${displaySpeaker(sec.title, speakers)}*\n${items.length ? items.join('\n') : 'None'}`;
+  }
   if (which === 'highlights') lines = (notes.highlights || []).map(x => `⭐ ${formatTime(x.time)} ${x.text}`);
   return `*${HEADS[which]}*\n${lines.length ? lines.join('\n') : 'None'}`;
 }
 
 export function toChatText(meeting) {
   const date = new Date(meeting.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  const parts = [...(meeting.notes?.highlights?.length ? ['highlights'] : []), 'summary', 'todos', 'ideas'];
+  const parts = [...(meeting.notes?.highlights?.length ? ['highlights'] : []), 'summary', 'todos', 'ideas',
+    ...(meeting.notes?.extraSections || []).map((_, i) => `extra:${i}`)];
   return [`*${meeting.title}*\n${date}`, ...parts.map(w => sectionText(meeting, w))].join('\n\n');
 }

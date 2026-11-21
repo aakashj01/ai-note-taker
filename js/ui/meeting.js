@@ -3,6 +3,7 @@ import { formatTime, displaySpeaker, sectionText, toChatText } from '../notes.js
 import { processMeeting, regenerateNotes, isRunning, onJobChange, jobStatus, NO_KEY } from '../process.js';
 import { h, header, icon, toast, copyText, formatDate, meetingDuration } from './dom.js';
 import { createPlayer } from './player.js';
+import { MEETING_TYPES } from '../prompt.js';
 
 export async function renderMeeting(root, id) {
   let m = await getMeeting(id);
@@ -66,6 +67,10 @@ export async function renderMeeting(root, id) {
         ? h('ul', { class: 'group' }, n.keyIdeas.map(k => h('li', { class: 'cell idea' },
             h('span', { class: 'dot' }), h('div', { class: 'cell-main' }, k.text), sourceBtn(k.source))))
         : h('p', { class: 'summary' }, 'No key ideas found.')),
+      ...(n.extraSections || []).map((sec, i) => copySection(displaySpeaker(sec.title, m.speakers), `extra:${i}`,
+        sec.items.length
+          ? h('ul', { class: 'group' }, sec.items.map(item => h('li', { class: 'cell idea' }, h('span', { class: 'dot' }), h('div', { class: 'cell-main' }, item))))
+          : h('p', { class: 'summary' }, 'Nothing for this one.'))),
       section('Speakers', h('ul', { class: 'group' }, h('li', {},
         h('a', { class: 'cell', href: `#/m/${id}/speakers` },
           h('span', { style: 'color: var(--tint)' }, icon('people', 22)),
@@ -106,6 +111,11 @@ export async function renderMeeting(root, id) {
       h('p', { class: 'meta' }, `${formatDate(m.createdAt)}, ${formatTime(meetingDuration(m))} long`,
         gaps ? `, recorded in ${m.parts.length} parts (interrupted at ${m.parts.slice(1).map(p => formatTime(p.startOffset)).join(', ')})` : '',
         m.bookmarks?.length && !m.notes?.highlights?.length ? h('span', { class: 'meta-marks' }, icon('flag', 14), m.bookmarks.length === 1 ? '1 marked moment' : `${m.bookmarks.length} marked moments`) : null),
+      h('div', { class: 'segmented type-picker', role: 'radiogroup', 'aria-label': 'Meeting type' },
+        Object.entries(MEETING_TYPES).map(([value, t]) => h('label', {},
+          h('input', { type: 'radio', name: 'mtype', value, checked: (m.type || 'general') === value, disabled: running,
+            onchange: () => { m.type = value; save(); if (m.notes) toast('Tap Regenerate notes to use this meeting type'); } }),
+          t.label))),
       m.error ? h('div', { class: 'banner warn', role: 'alert' }, h('div', {}, m.error === NO_KEY ? [NO_KEY, '. ', h('a', { href: '#/settings' }, 'Open Settings')] : m.error)) : null,
       running ? h('div', { class: 'banner working' }, h('div', { class: 'spinner' }), h('div', {}, jobStatus(id) || 'Making notes. This can take a minute or two for long meetings, so keep the app open.')) : null,
       m.notice ? h('div', { class: 'banner warn' }, m.notice) : null,

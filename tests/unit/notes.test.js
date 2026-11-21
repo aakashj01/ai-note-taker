@@ -119,3 +119,13 @@ test('highlights are normalised and copyable; v1 meetings have none', async () =
   const v1 = { title: 't', createdAt: 0, notes: { summary: 's', todos: [], keyIdeas: [] }, speakers: {} };
   assert.doesNotMatch(toChatText(v1), /Marked moments/);
 });
+
+test('extra sections are normalised, copied with speaker names, and in the full share', async () => {
+  const { sectionText, toChatText } = await import('../../js/notes.js');
+  const r = normalizeResult({ ...raw(), extra_sections: [{ title: 'Speaker 2', items: ['Done: deck draft', '', 'Blocked: pricing sign-off'] }, { title: '', items: ['x'] }] }, 600);
+  assert.deepEqual(r.notes.extraSections, [{ title: 'Speaker 2', items: ['Done: deck draft', 'Blocked: pricing sign-off'] }]);
+  const m = { title: 't', createdAt: 0, notes: r.notes, speakers: { 'Speaker 2': 'Rahul' } };
+  assert.equal(sectionText(m, 'extra:0'), '*Rahul*\n• Done: deck draft\n• Blocked: pricing sign-off');
+  assert.match(toChatText(m), /\*Rahul\*\n• Done: deck draft/);
+  assert.deepEqual(normalizeResult(raw(), 600).notes.extraSections, []);
+});

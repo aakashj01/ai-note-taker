@@ -23,13 +23,22 @@ const OUTPUT = `Return JSON with:
 - todos: action items.
 - transcript: segments in order, a new segment at each change of speaker (split long turns at ~30 s).`;
 
+// Each type keeps summary/to-dos/key ideas and adds its own sections via extra_sections.
+export const MEETING_TYPES = {
+  general: { label: 'General', guide: '' },
+  client: { label: 'Client call', guide: 'This is a call with a client. Also return extra_sections with exactly these titles, in order: "Client asks", "Decisions", "Risks or concerns", "Next steps". Each has short items; use an empty list when nothing fits.' },
+  standup: { label: 'Stand-up', guide: 'This is a team stand-up. Also return extra_sections with one section per person who spoke, titled with their speaker label (e.g. "Speaker 2"). Items start with "Done: ", "Doing: " or "Blocked: ". Leave out a prefix that has nothing.' },
+  oneonone: { label: '1:1', guide: 'This is a one-to-one meeting. Also return extra_sections with exactly these titles, in order: "Topics", "Feedback", "Commitments". Each has short items; use an empty list when nothing fits.' },
+};
+const typeLine = type => MEETING_TYPES[type]?.guide || '';
+
 function marksLine(bookmarks) {
   if (!bookmarks?.length) return '';
   return `The person recording marked important moments at ${bookmarks.map(formatTime).join(', ')} (meeting time). `
     + 'For each mark, add a highlight: time = the mark, text = one line on what was being said or decided right then. Make sure the notes cover these moments.';
 }
 
-export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [] }) {
+export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [], type = 'general' }) {
   const partLines = parts.length > 1
     ? `The audio comes in ${parts.length} parts because recording was interrupted. ` +
       parts.map((p, i) => `Part ${i + 1} starts at ${formatTime(p.startOffset)}`).join('; ') +
@@ -39,16 +48,18 @@ export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [] 
     'You are a careful meeting note-taker for a work meeting.',
     partLines,
     RULES,
+    typeLine(type),
     marksLine(bookmarks),
     context ? `Extra context from the person who recorded this (trust it over what you hear):\n${context}` : '',
     notesOnly ? OUTPUT.replace(/\n- transcript:.*$/, '') + '\nDo not include a transcript.' : OUTPUT,
   ].filter(Boolean).join('\n\n');
 }
 
-export function buildRegeneratePrompt({ transcriptText, context, bookmarks = [] }) {
+export function buildRegeneratePrompt({ transcriptText, context, bookmarks = [], type = 'general' }) {
   return [
     'You are a careful meeting note-taker. Below is a corrected transcript of a work meeting, already checked by the person who recorded it. Re-write the notes from it.',
     RULES,
+    typeLine(type),
     marksLine(bookmarks),
     context ? `Extra context from the person who recorded this (trust it over the transcript):\n${context}` : '',
     `Return JSON with:
@@ -68,9 +79,10 @@ export const RESPONSE_SCHEMA = {
     todos: { type: 'ARRAY', items: { type: 'OBJECT', properties: { text: S, owner_speaker: S, due: S, source: S }, required: ['text'] } },
     transcript: { type: 'ARRAY', items: { type: 'OBJECT', properties: { start: S, end: S, speaker: S, text: S }, required: ['start', 'speaker', 'text'] } },
     highlights: { type: 'ARRAY', items: { type: 'OBJECT', properties: { time: S, text: S }, required: ['time', 'text'] } },
+    extra_sections: { type: 'ARRAY', items: { type: 'OBJECT', properties: { title: S, items: { type: 'ARRAY', items: S } }, required: ['title', 'items'] } },
   },
   required: ['summary', 'key_ideas', 'todos', 'transcript'],
-  propertyOrdering: ['transcript', 'summary', 'key_ideas', 'todos', 'highlights'],
+  propertyOrdering: ['transcript', 'summary', 'key_ideas', 'todos', 'highlights', 'extra_sections'],
 };
 
 // Used for "Regenerate notes" and as the fallback when a long meeting's answer gets cut off.
@@ -81,7 +93,8 @@ export const NOTES_SCHEMA = {
     key_ideas: RESPONSE_SCHEMA.properties.key_ideas,
     todos: RESPONSE_SCHEMA.properties.todos,
     highlights: RESPONSE_SCHEMA.properties.highlights,
+    extra_sections: RESPONSE_SCHEMA.properties.extra_sections,
   },
   required: ['summary', 'key_ideas', 'todos'],
-  propertyOrdering: ['summary', 'key_ideas', 'todos', 'highlights'],
+  propertyOrdering: ['summary', 'key_ideas', 'todos', 'highlights', 'extra_sections'],
 };

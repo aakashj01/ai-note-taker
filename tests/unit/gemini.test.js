@@ -213,3 +213,21 @@ test('bookmarked times reach the prompt and the schema asks for highlights', asy
 test('no bookmarks, no highlight instruction', () => {
   assert.doesNotMatch(buildPrompt({ parts: [{ startOffset: 0 }], context: '' }), /marked important/);
 });
+
+test('stand-up asks for Done / Doing / Blocked per person; general adds nothing', async () => {
+  const { MEETING_TYPES } = await import('../../js/prompt.js');
+  const p = buildPrompt({ parts: [{ startOffset: 0 }], context: '', type: 'standup' });
+  assert.match(p, /stand-up/i);
+  assert.match(p, /Done:.*Doing:.*Blocked:/s);
+  assert.doesNotMatch(buildPrompt({ parts: [{ startOffset: 0 }], context: '', type: 'general' }), /extra_sections/);
+  assert.deepEqual(Object.keys(MEETING_TYPES), ['general', 'client', 'standup', 'oneonone']);
+  assert.match(buildPrompt({ parts: [{ startOffset: 0 }], context: '', type: 'client' }), /Client asks.*Decisions.*Risks.*Next steps/s);
+});
+
+test('meeting type reaches the prompt and schema has extra_sections', async () => {
+  const fetch = fakeFetch([answer(RESULT)]);
+  await createGemini({ apiKey: 'K', model: 'm', fetch }).processAudio([part([1])], '', { type: 'oneonone' });
+  const body = JSON.parse(fetch.calls[0].init.body);
+  assert.match(body.contents[0].parts.at(-1).text, /Topics.*Feedback.*Commitments/s);
+  assert.ok(body.generationConfig.responseSchema.properties.extra_sections);
+});

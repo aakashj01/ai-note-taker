@@ -37,6 +37,11 @@ before(async () => {
   const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 390, height: 844 }, serviceWorkers: 'block', permissions: ['microphone', 'clipboard-read', 'clipboard-write'] });
   await context.route('https://generativelanguage.googleapis.com/**', route => {
     geminiCalls++;
+    const sent = route.request().postData() || '';
+    if (/team stand-up/.test(sent)) {
+      const reply = { ...CANNED, extra_sections: [{ title: 'Speaker 2', items: ['Doing: the investor deck'] }] };
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: `data: ${JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(reply) }] } }] })}\r\n\r\n` });
+    }
     route.fulfill({ status: 200, contentType: 'text/event-stream', body:
       `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: 'thinking…', thought: true }] } }] })}\r\n\r\n` +
       `data: ${JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(CANNED) }] } }] })}\r\n\r\n` });
@@ -67,7 +72,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 11').waitFor();
+  await page.getByText('App version 12').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -206,4 +211,19 @@ test('settings shows today\'s API usage, and the log shows requests without the 
   assert.doesNotMatch(all, /test-key/);
   await page.locator('.term-entry summary').first().click();
   await page.locator('.term').getByText(/\[audio .* KB audio\/(mp4|webm)\]/).first().waitFor();
+});
+
+test('meeting type: choosing Stand-up and regenerating adds a section per person', async () => {
+  await page.goto(base + '#/m/' + (await page.evaluate(async () => {
+    const db = await new Promise(r => { const q = indexedDB.open('meeting-notes'); q.onsuccess = () => r(q.result); });
+    return new Promise(r => { const q = db.transaction('meetings').objectStore('meetings').getAll(); q.onsuccess = () => r(q.result.find(m => m.notes).id); });
+  })));
+  await page.getByRole('radio', { name: 'Stand-up' }).check();
+  await page.getByRole('button', { name: 'Regenerate notes' }).click();
+  await page.getByRole('heading', { name: 'Rahul' }).waitFor();
+  await page.getByText('Doing: the investor deck').waitFor();
+  await page.getByRole('button', { name: 'Copy rahul' }).click();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '*Rahul*\n• Doing: the investor deck');
+  await page.reload();
+  assert.equal(await page.getByRole('radio', { name: 'Stand-up' }).isChecked(), true);
 });
