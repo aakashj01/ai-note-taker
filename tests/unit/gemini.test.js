@@ -231,3 +231,11 @@ test('meeting type reaches the prompt and schema has extra_sections', async () =
   assert.match(body.contents[0].parts.at(-1).text, /Topics.*Feedback.*Commitments/s);
   assert.ok(body.generationConfig.responseSchema.properties.extra_sections);
 });
+
+test('known people are offered, with a rule to use names only when clear from speech', () => {
+  const p = buildPrompt({ parts: [{ startOffset: 0 }], context: '', people: ['Asha', 'Rahul'] });
+  assert.match(p, /Asha, Rahul/);
+  assert.match(p, /only when .*clear/i);
+  assert.doesNotMatch(buildPrompt({ parts: [{ startOffset: 0 }], context: '' }), /speaker_names/);
+  assert.ok(RESPONSE_SCHEMA.properties.speaker_names);
+});

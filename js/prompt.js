@@ -32,13 +32,18 @@ export const MEETING_TYPES = {
 };
 const typeLine = type => MEETING_TYPES[type]?.guide || '';
 
+function peopleLine(people) {
+  if (!people?.length) return '';
+  return `People who often attend: ${people.join(', ')}. Also return speaker_names: for a speaker label, give their real name only when it is clear from what was said (someone addresses them by name, or they introduce themselves). Leave speakers out when it is not clear. Never guess from the voice alone.`;
+}
+
 function marksLine(bookmarks) {
   if (!bookmarks?.length) return '';
   return `The person recording marked important moments at ${bookmarks.map(formatTime).join(', ')} (meeting time). `
     + 'For each mark, add a highlight: time = the mark, text = one line on what was being said or decided right then. Make sure the notes cover these moments.';
 }
 
-export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [], type = 'general' }) {
+export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [], type = 'general', people = [] }) {
   const partLines = parts.length > 1
     ? `The audio comes in ${parts.length} parts because recording was interrupted. ` +
       parts.map((p, i) => `Part ${i + 1} starts at ${formatTime(p.startOffset)}`).join('; ') +
@@ -48,6 +53,7 @@ export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [],
     'You are a careful meeting note-taker for a work meeting.',
     partLines,
     RULES,
+    notesOnly ? '' : peopleLine(people),
     typeLine(type),
     marksLine(bookmarks),
     context ? `Extra context from the person who recorded this (trust it over what you hear):\n${context}` : '',
@@ -80,9 +86,10 @@ export const RESPONSE_SCHEMA = {
     transcript: { type: 'ARRAY', items: { type: 'OBJECT', properties: { start: S, end: S, speaker: S, text: S }, required: ['start', 'speaker', 'text'] } },
     highlights: { type: 'ARRAY', items: { type: 'OBJECT', properties: { time: S, text: S }, required: ['time', 'text'] } },
     extra_sections: { type: 'ARRAY', items: { type: 'OBJECT', properties: { title: S, items: { type: 'ARRAY', items: S } }, required: ['title', 'items'] } },
+    speaker_names: { type: 'ARRAY', items: { type: 'OBJECT', properties: { label: S, name: S }, required: ['label', 'name'] } },
   },
   required: ['summary', 'key_ideas', 'todos', 'transcript'],
-  propertyOrdering: ['transcript', 'summary', 'key_ideas', 'todos', 'highlights', 'extra_sections'],
+  propertyOrdering: ['transcript', 'speaker_names', 'summary', 'key_ideas', 'todos', 'highlights', 'extra_sections'],
 };
 
 // Used for "Regenerate notes" and as the fallback when a long meeting's answer gets cut off.

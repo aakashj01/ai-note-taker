@@ -72,7 +72,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 12').waitFor();
+  await page.getByText('App version 13').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -226,4 +226,15 @@ test('meeting type: choosing Stand-up and regenerating adds a section per person
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '*Rahul*\n• Doing: the investor deck');
   await page.reload();
   assert.equal(await page.getByRole('radio', { name: 'Stand-up' }).isChecked(), true);
+});
+
+test('who spoke? offers people you named before as one-tap suggestions', async () => {
+  const id = await page.evaluate(async () => {
+    const db = await new Promise(r => { const q = indexedDB.open('meeting-notes'); q.onsuccess = () => r(q.result); });
+    return new Promise(r => { const q = db.transaction('meetings').objectStore('meetings').getAll(); q.onsuccess = () => r(q.result.find(m => m.notes).id); });
+  });
+  await page.goto(base + `#/m/${id}/speakers`);
+  assert.equal(await page.getByLabel('Name for Speaker 1').inputValue(), '');
+  await page.getByRole('button', { name: 'Use Rahul for Speaker 1' }).click();
+  assert.equal(await page.getByLabel('Name for Speaker 1').inputValue(), 'Rahul');
 });

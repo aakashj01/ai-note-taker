@@ -1,6 +1,7 @@
 // Runs the AI over a meeting and saves the result. Jobs survive screen re-renders.
 import { getMeeting, saveMeeting, getPartBlob, getSetting, addLog } from './db.js';
 import { createLoggedFetch } from './apilog.js';
+import { EMPTY_PEOPLE } from './people.js';
 import { createGemini } from './gemini.js';
 import { normalizeResult, transcriptToText } from './notes.js';
 import { meetingDuration } from './ui/dom.js';
@@ -82,6 +83,7 @@ async function run(id, work, { keepTranscript = false } = {}) {
       if (!keepTranscript) {
         latest.transcript = result.transcript;
         latest.speakers = mergeSpeakers(latest.speakers, result.speakers);
+        latest.nameGuesses = result.nameGuesses;
         latest.edited = false;
       }
       latest.notice = result.dropped ? 'This meeting was too long for a full transcript, so only the notes were made. The ↗ links still play the audio.' : null;
@@ -106,7 +108,7 @@ export function processMeeting(id) {
     })));
     const audio = parts.filter(p => p.blob.size > 0);
     if (!audio.length) throw new Error('This recording has no audio.');
-    return gemini.processAudio(audio, m.context || '', { bookmarks: m.bookmarks || [], type: m.type || 'general' });
+    return gemini.processAudio(audio, m.context || '', { bookmarks: m.bookmarks || [], type: m.type || 'general', people: (await getSetting('peopleStore', EMPTY_PEOPLE)).people });
   });
 }
 

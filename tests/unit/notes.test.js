@@ -129,3 +129,9 @@ test('extra sections are normalised, copied with speaker names, and in the full 
   assert.match(toChatText(m), /\*Rahul\*\n• Done: deck draft/);
   assert.deepEqual(normalizeResult(raw(), 600).notes.extraSections, []);
 });
+
+test('speaker name guesses kept only for labels that spoke', () => {
+  const r = normalizeResult({ ...raw(), speaker_names: [{ label: 'Speaker 2', name: 'Rahul' }, { label: 'Speaker 9', name: 'Ghost' }, { label: 'Speaker 1', name: '' }] }, 600);
+  assert.deepEqual(r.nameGuesses, { 'Speaker 2': 'Rahul' });
+  assert.deepEqual(normalizeResult(raw(), 600).nameGuesses, {});
+});

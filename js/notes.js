@@ -45,7 +45,12 @@ export function normalizeResult(raw, durationSec) {
     extraSections: arr(raw.extra_sections).filter(x => x && str(x.title))
       .map(x => ({ title: str(x.title), items: arr(x.items).map(str).filter(Boolean) })),
   };
-  return { transcript, notes, speakers };
+  const spoke = new Set(speakers);
+  const nameGuesses = {};
+  for (const g of arr(raw.speaker_names)) {
+    if (g && spoke.has(str(g.label)) && str(g.name)) nameGuesses[str(g.label)] = str(g.name);
+  }
+  return { transcript, notes, speakers, nameGuesses };
 }
 
 export function displaySpeaker(label, speakers) {
