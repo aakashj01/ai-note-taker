@@ -58,6 +58,7 @@ export function createRecorder({
 
   return {
     get state() { return state; },
+    get stream() { return rec ? stream : null; },
     get hasWakeLock() { return !!lock; },
     get currentPartId() { return rec ? part.id : null; },
     get currentMimeType() { return rec ? part.mimeType : null; },

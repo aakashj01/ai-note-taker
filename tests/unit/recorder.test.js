@@ -150,3 +150,12 @@ test('a failed chunk save is reported through onError', async () => {
   await new Promise(res => setTimeout(res, 0));
   assert.deepEqual(errors, ['QuotaExceededError']);
 });
+
+test('exposes the live mic stream while recording (for the waveform)', async () => {
+  const s = setup();
+  assert.equal(s.rec.stream, null);
+  await s.rec.start(0);
+  assert.ok(s.rec.stream && typeof s.rec.stream.getTracks === 'function');
+  await s.rec.stop();
+  assert.equal(s.rec.stream, null);
+});

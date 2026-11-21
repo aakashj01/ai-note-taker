@@ -5,16 +5,17 @@ import { APP_VERSION } from '../version.js';
 import { h, header, toast } from './dom.js';
 
 export async function renderSettings(root) {
-  const key = h('input', { id: 'api-key', type: 'password', value: await getSetting('apiKey', ''), autocomplete: 'off', spellcheck: false, placeholder: 'Paste your key' });
-  const model = h('input', { id: 'model', type: 'text', value: await getSetting('model', DEFAULT_MODEL), list: 'models', autocomplete: 'off', spellcheck: false });
+  const key = h('input', { id: 'api-key', class: 'field', 'aria-label': 'Gemini API key', type: 'password', value: await getSetting('apiKey', ''), autocomplete: 'off', spellcheck: false, placeholder: 'Paste your key' });
+  const model = h('input', { id: 'model', class: 'field', type: 'text', value: await getSetting('model', DEFAULT_MODEL), list: 'models', autocomplete: 'off', autocapitalize: 'off', spellcheck: false });
   const options = h('datalist', { id: 'models' });
+  const toggle = h('button', { class: 'btn btn-plain btn-small', type: 'button', onclick: () => { key.type = key.type === 'password' ? 'text' : 'password'; toggle.textContent = key.type === 'password' ? 'Show' : 'Hide'; } }, 'Show');
 
   async function loadModels() {
     if (!key.value.trim()) return toast('Add your key first');
     try {
       const names = await listModels({ apiKey: key.value.trim() });
       options.replaceChildren(...names.map(n => h('option', { value: n })));
-      toast(`${names.length} models available — tap the model box to pick`);
+      toast(`${names.length} models found. Tap the model field to pick one.`);
     } catch (e) { toast(e.message); }
   }
 
@@ -25,18 +26,20 @@ export async function renderSettings(root) {
   }
 
   root.append(
-    header('Settings', { back: '#/' }),
-    h('section', { class: 'content form' },
-      h('label', { for: 'api-key' }, 'Gemini API key'),
-      h('div', { class: 'row' }, key,
-        h('button', { class: 'btn btn-ghost small', type: 'button', onclick: e => { key.type = key.type === 'password' ? 'text' : 'password'; e.target.textContent = key.type === 'password' ? 'Show' : 'Hide'; } }, 'Show')),
-      h('p', { class: 'muted' }, 'Free from ', h('a', { href: 'https://aistudio.google.com/apikey', target: '_blank', rel: 'noopener' }, 'Google AI Studio'), '. It is stored only on this phone.'),
-      h('label', { for: 'model' }, 'AI model'),
-      h('div', { class: 'row' }, model, options, h('button', { class: 'btn btn-ghost small', type: 'button', onclick: loadModels }, 'Load list')),
-      h('p', { class: 'muted' }, `Default: ${DEFAULT_MODEL}. If you hit the daily limit, try a "flash-lite" model.`),
-      h('p', { class: 'privacy' }, 'Free Gemini tier: Google may use uploaded audio to improve its products.'),
-      h('button', { class: 'btn btn-primary btn-big', onclick: save }, 'Save'),
-      h('p', { class: 'muted version' }, `App version ${APP_VERSION}`),
-    ),
+    header('Settings', { large: true, back: '#/', backLabel: 'Meetings' }),
+    h('main', { class: 'page' },
+      h('section', { class: 'section' },
+        h('h2', { class: 'section-head' }, 'Gemini'),
+        h('ul', { class: 'group' },
+          h('li', { class: 'cell' }, h('label', { for: 'api-key', class: 'cell-label' }, 'API key'), key, toggle),
+          h('li', { class: 'cell' }, h('label', { for: 'model', class: 'cell-label' }, 'Model'), model, options,
+            h('button', { class: 'btn btn-plain btn-small', type: 'button', onclick: loadModels }, 'Browse'))),
+        h('p', { class: 'section-foot' }, 'Get a free key from ', h('a', { href: 'https://aistudio.google.com/apikey', target: '_blank', rel: 'noopener' }, 'Google AI Studio'),
+          '. It stays on this phone. If the model is busy, the app switches to gemini-flash-lite-latest by itself.')),
+      h('section', { class: 'section' },
+        h('h2', { class: 'section-head' }, 'Privacy'),
+        h('p', { class: 'summary' }, 'On the free tier, Google may use uploaded audio to improve its products. Recordings and notes are stored only on this phone.')),
+      h('section', { class: 'section' }, h('button', { class: 'btn btn-filled btn-block', onclick: save }, 'Save')),
+      h('p', { class: 'section-foot', style: 'text-align:center' }, `App version ${APP_VERSION}`)),
   );
 }

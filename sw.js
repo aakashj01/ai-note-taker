@@ -1,5 +1,5 @@
 // Caches the app shell so the home-screen app opens offline. Bump VERSION on each release.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = [
   './', 'index.html', 'styles.css', 'manifest.webmanifest',
   'js/app.js', 'js/db.js', 'js/notes.js', 'js/prompt.js', 'js/gemini.js', 'js/recorder.js', 'js/process.js',

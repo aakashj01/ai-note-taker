@@ -1,14 +1,15 @@
 import { getMeeting, saveMeeting, deleteMeeting } from '../db.js';
 import { formatTime, displaySpeaker, toMarkdown } from '../notes.js';
 import { processMeeting, regenerateNotes, isRunning, onJobChange, jobStatus, NO_KEY } from '../process.js';
-import { h, header, toast, formatDate, meetingDuration } from './dom.js';
+import { h, header, icon, toast, formatDate, meetingDuration } from './dom.js';
 import { createPlayer } from './player.js';
 
 export async function renderMeeting(root, id) {
   let m = await getMeeting(id);
   if (!m) { location.hash = '#/'; return; }
   const player = createPlayer(m);
-  const body = h('section', { class: 'content' });
+  const body = h('main', { class: 'page' });
+  const shareSlot = h('span', {});
   let transcriptOpen = false, highlightAt = null;
 
   const save = () => saveMeeting(m).catch(e => toast('Could not save: ' + e.message));
@@ -32,25 +33,31 @@ export async function renderMeeting(root, id) {
     player.playFrom(t);
   }
 
-  const sourceBtn = t => h('button', { class: 'src-btn', 'aria-label': 'Show source', title: `Hear it at ${formatTime(t)}`, onclick: () => showSource(t) }, '↗');
+  const sourceBtn = t => h('button', { class: 'src-btn', 'aria-label': 'Show source', title: `Hear it at ${formatTime(t)}`, onclick: () => showSource(t) }, icon('waveform', 20));
+  const section = (head, ...kids) => h('section', { class: 'section' }, head ? h('h2', { class: 'section-head' }, head) : null, kids);
 
   function notesView() {
     const n = m.notes;
     return [
-      h('h2', {}, 'Summary'),
-      h('p', { class: 'summary' }, n.summary || '—'),
-      h('h2', {}, 'To-dos'),
-      n.todos.length ? h('ul', { class: 'todos' }, n.todos.map(t => h('li', { class: 'todo' + (t.done ? ' done' : '') },
-        h('label', { class: 'todo-main' },
-          h('input', { type: 'checkbox', checked: t.done, onchange: e => { t.done = e.target.checked; save(); draw(); } }),
-          h('span', {},
-            t.owner ? h('strong', { class: 'owner' }, displaySpeaker(t.owner, m.speakers) + ': ') : null,
-            t.text,
-            t.due ? h('span', { class: 'due' }, ' · ' + t.due) : null)),
-        sourceBtn(t.source)))) : h('p', { class: 'muted' }, 'No to-dos were mentioned.'),
-      h('h2', {}, 'Key ideas'),
-      n.keyIdeas.length ? h('ul', { class: 'ideas' }, n.keyIdeas.map(k => h('li', {}, h('span', {}, k.text), sourceBtn(k.source))))
-        : h('p', { class: 'muted' }, 'No key ideas found.'),
+      section('Summary', h('p', { class: 'summary' }, n.summary || 'No summary.')),
+      section('To-dos', n.todos.length
+        ? h('ul', { class: 'group' }, n.todos.map(t => h('li', { class: 'cell todo' + (t.done ? ' done' : '') },
+            h('input', { type: 'checkbox', class: 'check', checked: t.done, 'aria-label': `Done: ${t.text}`, onchange: e => { t.done = e.target.checked; save(); draw(); } }),
+            h('div', { class: 'cell-main todo-text' },
+              t.owner ? h('span', { class: 'todo-owner' }, displaySpeaker(t.owner, m.speakers) + ': ') : null,
+              t.text,
+              t.due ? h('span', { class: 'todo-due' }, 'Due ' + t.due) : null),
+            sourceBtn(t.source))))
+        : h('p', { class: 'summary' }, 'No to-dos were mentioned.')),
+      section('Key ideas', n.keyIdeas.length
+        ? h('ul', { class: 'group' }, n.keyIdeas.map(k => h('li', { class: 'cell idea' },
+            h('span', { class: 'dot' }), h('div', { class: 'cell-main' }, k.text), sourceBtn(k.source))))
+        : h('p', { class: 'summary' }, 'No key ideas found.')),
+      section('Speakers', h('ul', { class: 'group' }, h('li', {},
+        h('a', { class: 'cell', href: `#/m/${id}/speakers` },
+          h('span', { style: 'color: var(--tint)' }, icon('people', 22)),
+          h('div', { class: 'cell-main' }, 'Name speakers'),
+          h('div', { class: 'cell-trail' }, Object.values(m.speakers || {}).filter(Boolean).join(', ') || `${Object.keys(m.speakers || {}).length} voices`, icon('chevron', 16)))))),
     ];
   }
 
@@ -58,15 +65,18 @@ export async function renderMeeting(root, id) {
     const segs = m.transcript || [];
     let hlIndex = -1;
     if (highlightAt != null) segs.forEach((s, i) => { if (s.start <= highlightAt + 0.5) hlIndex = i; });
-    return h('details', { class: 'transcript', open: transcriptOpen, ontoggle: e => { transcriptOpen = e.target.open; } },
-      h('summary', {}, `Transcript (${segs.length} lines) — tap text to correct it`),
-      segs.map((s, i) => h('div', { class: 'seg' + (i === hlIndex ? ' hl' : '') },
-        h('button', { class: 'seg-time', onclick: () => player.playFrom(s.start), 'aria-label': `Play from ${formatTime(s.start)}` }, '▶ ' + formatTime(s.start)),
-        h('span', { class: 'seg-speaker' }, displaySpeaker(s.speaker, m.speakers)),
-        h('div', {
-          class: 'seg-text', contentEditable: 'plaintext-only', spellcheck: false,
-          onblur: e => { const v = e.target.textContent.trim(); if (v !== s.text) { s.text = v; m.edited = true; save(); toast('Saved. Tap "Regenerate notes" to update the notes.'); } },
-        }, s.text))));
+    return section('Transcript',
+      h('details', { class: 'transcript', open: transcriptOpen, ontoggle: e => { transcriptOpen = e.target.open; } },
+        h('summary', {}, h('span', {}, `${segs.length} lines`), icon('chevron', 16)),
+        segs.map((s, i) => h('div', { class: 'seg' + (i === hlIndex ? ' hl' : '') },
+          h('div', { class: 'seg-head' },
+            h('button', { class: 'seg-time', onclick: () => player.playFrom(s.start), 'aria-label': `Play from ${formatTime(s.start)}` }, icon('play', 12), formatTime(s.start)),
+            h('span', { class: 'seg-speaker' }, displaySpeaker(s.speaker, m.speakers))),
+          h('div', {
+            class: 'seg-text', contentEditable: 'plaintext-only', spellcheck: false,
+            onblur: e => { const v = e.target.textContent.trim(); if (v !== s.text) { s.text = v; m.edited = true; save(); toast('Saved. Tap Regenerate notes to update them.'); } },
+          }, s.text)))),
+      h('p', { class: 'section-foot' }, 'Tap any line to correct it.'));
   }
 
   function draw() {
@@ -76,29 +86,28 @@ export async function renderMeeting(root, id) {
       class: 'title-input', value: m.title, 'aria-label': 'Meeting title',
       onchange: e => { m.title = e.target.value.trim() || m.title; save(); },
     });
+    shareSlot.replaceChildren(m.notes ? h('button', { class: 'nav-btn', 'aria-label': 'Share', onclick: share }, icon('share', 22)) : '');
 
     body.replaceChildren(...[
       title,
-      h('p', { class: 'muted meta' }, `${formatDate(m.createdAt)} · ${formatTime(meetingDuration(m))}`,
-        gaps ? ` · recorded in ${m.parts.length} parts (interrupted at ${m.parts.slice(1).map(p => formatTime(p.startOffset)).join(', ')})` : ''),
-      m.error ? h('div', { class: 'alert' }, m.error === NO_KEY ? [NO_KEY, ' ', h('a', { href: '#/settings' }, 'Open Settings')] : m.error) : null,
-      running ? h('div', { class: 'working' }, h('div', { class: 'spinner' }), h('p', {}, jobStatus(id) || 'Making notes… this can take a minute or two for long meetings. Keep the app open until the notes appear.')) : null,
-      m.notice ? h('p', { class: 'alert' }, m.notice) : null,
-      !running && !m.notes ? h('button', { class: 'btn btn-primary btn-big', onclick: () => make(processMeeting) }, 'Make notes') : null,
-      !running && !m.notes ? h('a', { class: 'btn btn-ghost', href: `#/record/${id}` }, 'Continue recording this meeting') : null,
+      h('p', { class: 'meta' }, `${formatDate(m.createdAt)}, ${formatTime(meetingDuration(m))} long`,
+        gaps ? `, recorded in ${m.parts.length} parts (interrupted at ${m.parts.slice(1).map(p => formatTime(p.startOffset)).join(', ')})` : ''),
+      m.error ? h('div', { class: 'banner warn', role: 'alert' }, h('div', {}, m.error === NO_KEY ? [NO_KEY, '. ', h('a', { href: '#/settings' }, 'Open Settings')] : m.error)) : null,
+      running ? h('div', { class: 'banner working' }, h('div', { class: 'spinner' }), h('div', {}, jobStatus(id) || 'Making notes. This can take a minute or two for long meetings, so keep the app open.')) : null,
+      m.notice ? h('div', { class: 'banner warn' }, m.notice) : null,
+      !running && !m.notes ? section(null,
+        h('button', { class: 'btn btn-filled btn-block', onclick: () => make(processMeeting) }, icon('sparkle', 20), 'Make notes'),
+        h('a', { class: 'btn btn-plain btn-block', href: `#/record/${id}` }, 'Continue recording this meeting')) : null,
       m.notes ? notesView() : null,
-      m.notes ? h('div', { class: 'row' },
-        h('button', { class: 'btn btn-secondary', onclick: share }, 'Share'),
-        h('a', { class: 'btn btn-secondary', href: `#/m/${id}/speakers`, role: 'link' }, 'Name speakers')) : null,
       m.transcript?.length ? transcriptView() : null,
-      m.notes ? h('div', { class: 'fix' },
-        h('h2', {}, 'Something wrong?'),
-        h('p', { class: 'muted' }, 'Correct the transcript above, or add context here (e.g. "we meant the Q3 budget"), then regenerate.'),
-        h('textarea', { rows: 3, 'aria-label': 'Context for the AI', placeholder: 'Add context…', value: m.context || '', oninput: e => { m.context = e.target.value; }, onchange: save }),
-        h('div', { class: 'row' },
-          h('button', { class: 'btn btn-secondary', disabled: running, onclick: async () => { await save(); make(regenerateNotes); } }, 'Regenerate notes'),
-          h('button', { class: 'btn btn-ghost', disabled: running, onclick: async () => { await save(); make(processMeeting); } }, 'Re-listen to audio'))) : null,
-      h('button', { class: 'btn btn-ghost danger', onclick: remove }, 'Delete meeting'),
+      m.notes ? section('Something wrong?',
+        h('ul', { class: 'group' }, h('li', { class: 'cell' },
+          h('textarea', { class: 'field', rows: 3, 'aria-label': 'Context for the AI', placeholder: 'Add context, like "we meant the Q3 budget"', value: m.context || '', oninput: e => { m.context = e.target.value; }, onchange: save }))),
+        h('ul', { class: 'group', style: 'margin-top: 12px' },
+          h('li', {}, h('button', { class: 'cell action', disabled: running, onclick: async () => { await save(); make(regenerateNotes); } }, 'Regenerate notes')),
+          h('li', {}, h('button', { class: 'cell action', disabled: running, onclick: async () => { await save(); make(processMeeting); } }, 'Re-listen to the audio'))),
+        h('p', { class: 'section-foot' }, 'Regenerate uses your corrected transcript. Re-listen starts again from the recording.')) : null,
+      section(null, h('ul', { class: 'group' }, h('li', {}, h('button', { class: 'cell action destructive', onclick: remove }, 'Delete meeting')))),
     ].flat(Infinity).filter(Boolean));
   }
 
@@ -120,7 +129,7 @@ export async function renderMeeting(root, id) {
 
   const off = onJobChange(async jid => { if (jid === id) { m = await getMeeting(id); draw(); } });
 
-  root.append(header('Meeting', { back: '#/' }), body);
+  root.append(header('', { back: '#/', backLabel: 'Meetings', actions: [shareSlot] }), body);
   draw();
   return () => { off(); player.dispose(); };
 }

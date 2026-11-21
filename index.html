@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Meeting Notes</title>
   <meta name="description" content="Record work meetings and get AI notes: summary, key ideas and to-dos. English, Hindi and Hinglish.">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,7 +17,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main id="app" aria-live="polite"></main>
+  <div id="app"></div>
   <div id="toast" role="status" hidden></div>
   <script type="module" src="js/app.js"></script>
 </body>
