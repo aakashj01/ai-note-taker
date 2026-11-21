@@ -2,6 +2,8 @@
 import { getMeeting, saveMeeting, getPartBlob, getSetting, addLog } from './db.js';
 import { createLoggedFetch } from './apilog.js';
 import { EMPTY_PEOPLE } from './people.js';
+import { buildAskContext } from './ask.js';
+import { listMeetings } from './db.js';
 import { createGemini } from './gemini.js';
 import { normalizeResult, transcriptToText } from './notes.js';
 import { meetingDuration } from './ui/dom.js';
@@ -130,3 +132,20 @@ export async function recoverStuck(meetings) {
   }
 }
 recoverStuck.activeRecording = new Set();
+
+export const NO_MEETINGS = 'Make notes for at least one meeting first, then ask about it.';
+
+// One Gemini request with every meeting's notes and transcript as context.
+export async function askMeetings(question, onStatus = () => {}) {
+  const context = buildAskContext(await listMeetings());
+  if (!context) throw new Error(NO_MEETINGS);
+  const apiKey = await getSetting('apiKey', '');
+  if (!apiKey) throw new Error(NO_KEY);
+  const model = (await getSetting('model', DEFAULT_MODEL)) || DEFAULT_MODEL;
+  const gemini = geminiFactory({ apiKey, model, fetch: geminiFetch, onStatus });
+  try {
+    return await gemini.ask(question, context);
+  } catch (e) {
+    throw new Error(friendlyError(e));
+  }
+}

@@ -38,6 +38,11 @@ before(async () => {
   await context.route('https://generativelanguage.googleapis.com/**', route => {
     geminiCalls++;
     const sent = route.request().postData() || '';
+    if (/Question: /.test(sent)) {
+      const id = (sent.match(/id=([0-9a-f-]{36})/) || [])[1];
+      const reply = { answer: 'Rahul said he will send the deck by Friday.', sources: [{ meeting_id: id, time: '00:02' }] };
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: `data: ${JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(reply) }] } }] })}\r\n\r\n` });
+    }
     if (/team stand-up/.test(sent)) {
       const reply = { ...CANNED, extra_sections: [{ title: 'Speaker 2', items: ['Doing: the investor deck'] }] };
       return route.fulfill({ status: 200, contentType: 'text/event-stream', body: `data: ${JSON.stringify({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(reply) }] } }] })}\r\n\r\n` });
@@ -72,7 +77,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 13').waitFor();
+  await page.getByText('App version 14').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -237,4 +242,14 @@ test('who spoke? offers people you named before as one-tap suggestions', async (
   assert.equal(await page.getByLabel('Name for Speaker 1').inputValue(), '');
   await page.getByRole('button', { name: 'Use Rahul for Speaker 1' }).click();
   assert.equal(await page.getByLabel('Name for Speaker 1').inputValue(), 'Rahul');
+});
+
+test('ask your meetings answers with a tappable source', async () => {
+  await page.goto(base);
+  await page.getByRole('link', { name: 'Ask' }).click();
+  await page.getByLabel('Your question').fill('What did Rahul promise?');
+  await page.getByRole('button', { name: 'Ask', exact: true }).click();
+  await page.getByText('Rahul said he will send the deck by Friday.').waitFor();
+  await page.locator('.source-link').first().click();
+  await page.getByText('The team discussed moving the launch date.').waitFor();
 });

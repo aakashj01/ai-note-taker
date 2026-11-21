@@ -1,5 +1,6 @@
 // Talks to the Gemini REST API using the owner's own key. fetch/sleep are injectable for tests.
 import { buildPrompt, buildRegeneratePrompt, RESPONSE_SCHEMA, NOTES_SCHEMA } from './prompt.js';
+import { buildAskPrompt, ASK_SCHEMA } from './ask.js';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const UPLOAD = 'https://generativelanguage.googleapis.com/upload/v1beta/files';
@@ -171,6 +172,9 @@ export function createGemini({
         const notes = await generate([...audio, { text: buildPrompt({ parts, context, notesOnly: true, ...opts }) }], NOTES_SCHEMA);
         return { ...notes, transcript: [], transcriptDropped: true };
       }
+    },
+    ask(question, context) {
+      return generate([{ text: buildAskPrompt(question, context) }], ASK_SCHEMA);
     },
     regenerate(transcriptText, context, opts = {}) {
       return generate([{ text: buildRegeneratePrompt({ transcriptText, context, ...opts }) }], NOTES_SCHEMA);

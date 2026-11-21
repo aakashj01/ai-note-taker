@@ -239,3 +239,12 @@ test('known people are offered, with a rule to use names only when clear from sp
   assert.doesNotMatch(buildPrompt({ parts: [{ startOffset: 0 }], context: '' }), /speaker_names/);
   assert.ok(RESPONSE_SCHEMA.properties.speaker_names);
 });
+
+test('ask sends the question with the ask schema and no audio', async () => {
+  const fetch = fakeFetch([answer({ answer: 'Friday', sources: [] })]);
+  const out = await createGemini({ apiKey: 'K', model: 'm', fetch }).ask('When?', 'CTX');
+  assert.equal(out.answer, 'Friday');
+  const body = JSON.parse(fetch.calls[0].init.body);
+  assert.ok(body.generationConfig.responseSchema.properties.sources);
+  assert.ok(body.contents[0].parts.every(p => !p.inline_data));
+});

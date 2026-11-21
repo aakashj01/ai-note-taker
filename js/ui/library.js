@@ -100,7 +100,9 @@ export async function renderLibrary(root) {
   const body = [meetings.length ? h('div', { class: 'search-wrap' }, search) : null, results];
 
   root.append(
-    header('Meetings', { large: true, actions: [h('a', { href: '#/settings', class: 'nav-btn', 'aria-label': 'Settings' }, icon('gear', 24))] }),
+    header('Meetings', { large: true, actions: [
+      h('a', { href: '#/ask', class: 'nav-btn', 'aria-label': 'Ask' }, icon('sparkle', 24)),
+      h('a', { href: '#/settings', class: 'nav-btn', 'aria-label': 'Settings' }, icon('gear', 24))] }),
     h('main', { class: 'page' }, body),
     fileInput,
     h('nav', { class: 'toolbar', 'aria-label': 'Actions' },
