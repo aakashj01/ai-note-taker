@@ -1,6 +1,7 @@
 import { getSetting, setSetting } from '../db.js';
 import { listModels } from '../gemini.js';
 import { DEFAULT_MODEL } from '../process.js';
+import { APP_VERSION } from '../version.js';
 import { h, header, toast } from './dom.js';
 
 export async function renderSettings(root) {
@@ -35,6 +36,7 @@ export async function renderSettings(root) {
       h('p', { class: 'muted' }, `Default: ${DEFAULT_MODEL}. If you hit the daily limit, try a "flash-lite" model.`),
       h('p', { class: 'privacy' }, 'Free Gemini tier: Google may use uploaded audio to improve its products.'),
       h('button', { class: 'btn btn-primary btn-big', onclick: save }, 'Save'),
+      h('p', { class: 'muted version' }, `App version ${APP_VERSION}`),
     ),
   );
 }
