@@ -40,6 +40,8 @@ export function normalizeResult(raw, durationSec) {
       .map(k => ({ text: str(k.text), source: clamp(k.source) })),
     todos: arr(raw.todos).filter(t => t && str(t.text))
       .map(t => ({ text: str(t.text), owner: str(t.owner_speaker) || null, due: str(t.due) || null, source: clamp(t.source), done: false })),
+    highlights: arr(raw.highlights).filter(x => x && str(x.text))
+      .map(x => ({ time: clamp(x.time), text: str(x.text) })),
   };
   return { transcript, notes, speakers };
 }
@@ -70,7 +72,7 @@ export function toMarkdown(meeting) {
 }
 
 // Chat-friendly text (WhatsApp/Slack/Teams): *bold* headings, ☐/☑ for to-dos, no Markdown #.
-const HEADS = { summary: 'Summary', todos: 'To-dos', ideas: 'Key ideas' };
+const HEADS = { summary: 'Summary', todos: 'To-dos', ideas: 'Key ideas', highlights: 'Marked moments' };
 
 export function sectionText(meeting, which) {
   const { notes = {}, speakers = {} } = meeting;
@@ -83,10 +85,12 @@ export function sectionText(meeting, which) {
     });
   }
   if (which === 'ideas') lines = (notes.keyIdeas || []).map(k => `• ${k.text}`);
+  if (which === 'highlights') lines = (notes.highlights || []).map(x => `⭐ ${formatTime(x.time)} ${x.text}`);
   return `*${HEADS[which]}*\n${lines.length ? lines.join('\n') : 'None'}`;
 }
 
 export function toChatText(meeting) {
   const date = new Date(meeting.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  return [`*${meeting.title}*\n${date}`, ...['summary', 'todos', 'ideas'].map(w => sectionText(meeting, w))].join('\n\n');
+  const parts = [...(meeting.notes?.highlights?.length ? ['highlights'] : []), 'summary', 'todos', 'ideas'];
+  return [`*${meeting.title}*\n${date}`, ...parts.map(w => sectionText(meeting, w))].join('\n\n');
 }

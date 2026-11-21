@@ -155,7 +155,7 @@ export function createGemini({
   }
 
   return {
-    async processAudio(parts, context) {
+    async processAudio(parts, context, opts = {}) {
       const total = parts.reduce((n, p) => n + p.blob.size, 0);
       const audio = [];
       for (const p of parts) {
@@ -164,16 +164,16 @@ export function createGemini({
           : await upload(p.blob, p.mimeType));
       }
       try {
-        return await generate([...audio, { text: buildPrompt({ parts, context }) }]);
+        return await generate([...audio, { text: buildPrompt({ parts, context, ...opts }) }]);
       } catch (e) {
         if (!e.truncated) throw e;
         // Too long for transcript + notes in one answer: get the notes alone, same audio.
-        const notes = await generate([...audio, { text: buildPrompt({ parts, context, notesOnly: true }) }], NOTES_SCHEMA);
+        const notes = await generate([...audio, { text: buildPrompt({ parts, context, notesOnly: true, ...opts }) }], NOTES_SCHEMA);
         return { ...notes, transcript: [], transcriptDropped: true };
       }
     },
-    regenerate(transcriptText, context) {
-      return generate([{ text: buildRegeneratePrompt({ transcriptText, context }) }], NOTES_SCHEMA);
+    regenerate(transcriptText, context, opts = {}) {
+      return generate([{ text: buildRegeneratePrompt({ transcriptText, context, ...opts }) }], NOTES_SCHEMA);
     },
   };
 }

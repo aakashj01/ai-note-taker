@@ -106,12 +106,12 @@ export function processMeeting(id) {
     })));
     const audio = parts.filter(p => p.blob.size > 0);
     if (!audio.length) throw new Error('This recording has no audio.');
-    return gemini.processAudio(audio, m.context || '');
+    return gemini.processAudio(audio, m.context || '', { bookmarks: m.bookmarks || [] });
   });
 }
 
 export function regenerateNotes(id) {
-  return run(id, (m, gemini) => gemini.regenerate(transcriptToText(m.transcript || [], m.speakers), m.context || ''), { keepTranscript: true });
+  return run(id, (m, gemini) => gemini.regenerate(transcriptToText(m.transcript || [], m.speakers), m.context || '', { bookmarks: m.bookmarks || [] }), { keepTranscript: true });
 }
 
 // After a reload no job is running, so anything stuck "processing"/"recording" is recovered.

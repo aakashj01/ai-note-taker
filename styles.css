@@ -130,6 +130,9 @@ mark { background: var(--hl); color: inherit; border-radius: 3px; padding: 0 1px
 .term pre { margin: 6px 0 4px; white-space: pre-wrap; word-break: break-word; color: #ce9178; font: inherit; max-height: 50vh; overflow: auto; }
 .term-label { color: #c586c0; margin-top: 6px; }
 .term-empty { padding: 12px; color: #808080; }
+.mark-btn { position: relative; color: var(--orange); }
+.mark-count { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--orange); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.meta-marks { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; color: var(--orange); }
 .section-foot { font-size: 13px; line-height: 18px; color: var(--label-2); margin: 7px 16px 0; letter-spacing: -0.08px; }
 .group { list-style: none; margin: 0; padding: 0; background: var(--cell); border-radius: var(--r); overflow: hidden; }
 .cell { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label); }

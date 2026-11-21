@@ -200,3 +200,16 @@ test('a dropped connection is retried once', async () => {
   const g = createGemini({ apiKey: 'K', model: 'm', fetch, sleep: () => {} });
   assert.deepEqual(await g.processAudio([part([1])], ''), RESULT);
 });
+
+test('bookmarked times reach the prompt and the schema asks for highlights', async () => {
+  const fetch = fakeFetch([answer(RESULT)]);
+  await createGemini({ apiKey: 'K', model: 'm', fetch }).processAudio([part([1])], '', { bookmarks: [45, 190] });
+  const body = JSON.parse(fetch.calls[0].init.body);
+  const prompt = body.contents[0].parts.at(-1).text;
+  assert.match(prompt, /marked important moments at 0:45, 3:10/);
+  assert.ok(body.generationConfig.responseSchema.properties.highlights);
+});
+
+test('no bookmarks, no highlight instruction', () => {
+  assert.doesNotMatch(buildPrompt({ parts: [{ startOffset: 0 }], context: '' }), /marked important/);
+});

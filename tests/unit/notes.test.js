@@ -107,3 +107,15 @@ test('chat text says so when a section is empty', async () => {
   const m = { notes: { summary: '', todos: [], keyIdeas: [] }, speakers: {} };
   assert.equal(sectionText(m, 'todos'), '*To-dos*\nNone');
 });
+
+test('highlights are normalised and copyable; v1 meetings have none', async () => {
+  const { sectionText, toChatText } = await import('../../js/notes.js');
+  const r = normalizeResult({ ...raw(), highlights: [{ time: '00:45', text: 'Budget approved' }, { time: '1:00', text: '' }] }, 600);
+  assert.deepEqual(r.notes.highlights, [{ time: 45, text: 'Budget approved' }]);
+  assert.deepEqual(normalizeResult(raw(), 600).notes.highlights, []);
+  const m = { title: 't', createdAt: 0, notes: r.notes, speakers: {} };
+  assert.equal(sectionText(m, 'highlights'), '*Marked moments*\n⭐ 0:45 Budget approved');
+  assert.match(toChatText(m), /\*Marked moments\*\n⭐ 0:45/);
+  const v1 = { title: 't', createdAt: 0, notes: { summary: 's', todos: [], keyIdeas: [] }, speakers: {} };
+  assert.doesNotMatch(toChatText(v1), /Marked moments/);
+});

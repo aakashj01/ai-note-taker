@@ -23,7 +23,13 @@ const OUTPUT = `Return JSON with:
 - todos: action items.
 - transcript: segments in order, a new segment at each change of speaker (split long turns at ~30 s).`;
 
-export function buildPrompt({ parts, context, notesOnly = false }) {
+function marksLine(bookmarks) {
+  if (!bookmarks?.length) return '';
+  return `The person recording marked important moments at ${bookmarks.map(formatTime).join(', ')} (meeting time). `
+    + 'For each mark, add a highlight: time = the mark, text = one line on what was being said or decided right then. Make sure the notes cover these moments.';
+}
+
+export function buildPrompt({ parts, context, notesOnly = false, bookmarks = [] }) {
   const partLines = parts.length > 1
     ? `The audio comes in ${parts.length} parts because recording was interrupted. ` +
       parts.map((p, i) => `Part ${i + 1} starts at ${formatTime(p.startOffset)}`).join('; ') +
@@ -33,15 +39,17 @@ export function buildPrompt({ parts, context, notesOnly = false }) {
     'You are a careful meeting note-taker for a work meeting.',
     partLines,
     RULES,
+    marksLine(bookmarks),
     context ? `Extra context from the person who recorded this (trust it over what you hear):\n${context}` : '',
     notesOnly ? OUTPUT.replace(/\n- transcript:.*$/, '') + '\nDo not include a transcript.' : OUTPUT,
   ].filter(Boolean).join('\n\n');
 }
 
-export function buildRegeneratePrompt({ transcriptText, context }) {
+export function buildRegeneratePrompt({ transcriptText, context, bookmarks = [] }) {
   return [
     'You are a careful meeting note-taker. Below is a corrected transcript of a work meeting, already checked by the person who recorded it. Re-write the notes from it.',
     RULES,
+    marksLine(bookmarks),
     context ? `Extra context from the person who recorded this (trust it over the transcript):\n${context}` : '',
     `Return JSON with:
 - summary: 3-6 sentence summary of the meeting.
@@ -59,9 +67,10 @@ export const RESPONSE_SCHEMA = {
     key_ideas: { type: 'ARRAY', items: { type: 'OBJECT', properties: { text: S, source: S }, required: ['text'] } },
     todos: { type: 'ARRAY', items: { type: 'OBJECT', properties: { text: S, owner_speaker: S, due: S, source: S }, required: ['text'] } },
     transcript: { type: 'ARRAY', items: { type: 'OBJECT', properties: { start: S, end: S, speaker: S, text: S }, required: ['start', 'speaker', 'text'] } },
+    highlights: { type: 'ARRAY', items: { type: 'OBJECT', properties: { time: S, text: S }, required: ['time', 'text'] } },
   },
   required: ['summary', 'key_ideas', 'todos', 'transcript'],
-  propertyOrdering: ['transcript', 'summary', 'key_ideas', 'todos'],
+  propertyOrdering: ['transcript', 'summary', 'key_ideas', 'todos', 'highlights'],
 };
 
 // Used for "Regenerate notes" and as the fallback when a long meeting's answer gets cut off.
@@ -71,7 +80,8 @@ export const NOTES_SCHEMA = {
     summary: S,
     key_ideas: RESPONSE_SCHEMA.properties.key_ideas,
     todos: RESPONSE_SCHEMA.properties.todos,
+    highlights: RESPONSE_SCHEMA.properties.highlights,
   },
   required: ['summary', 'key_ideas', 'todos'],
-  propertyOrdering: ['summary', 'key_ideas', 'todos'],
+  propertyOrdering: ['summary', 'key_ideas', 'todos', 'highlights'],
 };

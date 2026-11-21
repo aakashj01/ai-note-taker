@@ -167,6 +167,15 @@ export async function renderRecord(root, continueId) {
     location.hash = `#/m/${meeting.id}`;
   }
 
+  function mark() {
+    const t = Math.round(rec.elapsed());
+    meeting.bookmarks = [...(meeting.bookmarks || []), t];
+    persist();
+    navigator.vibrate?.(15);
+    toast(`Marked ${formatTime(t)}`);
+    draw();
+  }
+
   function startOver() {
     recoverStuck.activeRecording.delete(meeting.id);
     meeting.status = 'recorded';
@@ -190,7 +199,12 @@ export async function renderRecord(root, continueId) {
       : s === 'paused'
         ? h('button', { class: 'round-btn', 'aria-label': 'Resume', onclick: () => { rec.resume(); draw(); } }, icon('play', 22))
         : null;
-    actions.replaceChildren(h('div', { class: 'side' }), main, h('div', { class: 'side' }, pauseBtn));
+    const marks = meeting?.bookmarks?.length || 0;
+    const markBtn = live
+      ? h('button', { class: 'round-btn mark-btn', 'aria-label': 'Mark this moment', onclick: mark },
+          icon('flag', 22), marks ? h('span', { class: 'mark-count', 'aria-hidden': 'true' }, String(marks)) : null)
+      : null;
+    actions.replaceChildren(h('div', { class: 'side' }, markBtn), main, h('div', { class: 'side' }, pauseBtn));
     extra.replaceChildren(...[
       resumable ? h('button', { class: 'btn btn-tinted btn-block', onclick: finish }, 'Finish and save') : null,
       resumable && s === 'idle' && !continueId ? h('button', { class: 'btn btn-plain btn-block', onclick: startOver }, 'Start a new recording') : null,

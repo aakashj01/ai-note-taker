@@ -48,6 +48,10 @@ export async function renderMeeting(root, id) {
   function notesView() {
     const n = m.notes;
     return [
+      n.highlights?.length ? copySection('Marked moments', 'highlights',
+        h('ul', { class: 'group' }, n.highlights.map(x => h('li', { class: 'cell idea', style: '--inset:16px' },
+          h('button', { class: 'seg-time', onclick: () => showSource(x.time), 'aria-label': `Play from ${formatTime(x.time)}` }, icon('play', 12), formatTime(x.time)),
+          h('div', { class: 'cell-main' }, x.text))))) : null,
       copySection('Summary', 'summary', h('p', { class: 'summary' }, n.summary || 'No summary.')),
       copySection('To-dos', 'todos', n.todos.length
         ? h('ul', { class: 'group' }, n.todos.map(t => h('li', { class: 'cell todo' + (t.done ? ' done' : '') },
@@ -100,7 +104,8 @@ export async function renderMeeting(root, id) {
     body.replaceChildren(...[
       title,
       h('p', { class: 'meta' }, `${formatDate(m.createdAt)}, ${formatTime(meetingDuration(m))} long`,
-        gaps ? `, recorded in ${m.parts.length} parts (interrupted at ${m.parts.slice(1).map(p => formatTime(p.startOffset)).join(', ')})` : ''),
+        gaps ? `, recorded in ${m.parts.length} parts (interrupted at ${m.parts.slice(1).map(p => formatTime(p.startOffset)).join(', ')})` : '',
+        m.bookmarks?.length && !m.notes?.highlights?.length ? h('span', { class: 'meta-marks' }, icon('flag', 14), m.bookmarks.length === 1 ? '1 marked moment' : `${m.bookmarks.length} marked moments`) : null),
       m.error ? h('div', { class: 'banner warn', role: 'alert' }, h('div', {}, m.error === NO_KEY ? [NO_KEY, '. ', h('a', { href: '#/settings' }, 'Open Settings')] : m.error)) : null,
       running ? h('div', { class: 'banner working' }, h('div', { class: 'spinner' }), h('div', {}, jobStatus(id) || 'Making notes. This can take a minute or two for long meetings, so keep the app open.')) : null,
       m.notice ? h('div', { class: 'banner warn' }, m.notice) : null,

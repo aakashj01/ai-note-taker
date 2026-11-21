@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 10').waitFor();
+  await page.getByText('App version 11').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -169,6 +169,8 @@ test('a recording cut off by a page reload can be continued as the same meeting'
   await page.goto(base + '#/record');
   await page.getByRole('button', { name: 'Start recording' }).click();
   await page.getByRole('button', { name: 'Stop' }).waitFor();
+  await page.getByRole('button', { name: 'Mark this moment' }).click();
+  await page.getByText(/Marked 0:0/).waitFor();
   await page.waitForTimeout(6500); // at least one 5 s chunk saved
   await page.reload(); // what iOS does to a backgrounded home-screen app
   await page.getByRole('button', { name: /Continue recording/ }).click();
@@ -176,6 +178,7 @@ test('a recording cut off by a page reload can be continued as the same meeting'
   await page.waitForTimeout(1500);
   await page.getByRole('button', { name: 'Stop' }).click();
   await page.getByText(/recorded in 2 parts/).waitFor();
+  await page.getByText('1 marked moment').waitFor();
   await page.goto(base);
   assert.equal(await page.locator('.meeting-card').count(), 3);
 });
