@@ -67,7 +67,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 6').waitFor();
+  await page.getByText('App version 7').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -97,6 +97,21 @@ test('each section can be copied on its own for WhatsApp', async () => {
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^\*To-dos\*\n☐ Rahul: Send the deck \(due Friday\)$/);
   await page.getByRole('button', { name: 'Copy key ideas' }).click();
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '*Key ideas*\n• Launch moves to next month');
+});
+
+test('search finds a meeting by a word in its notes', async () => {
+  await page.goto(base);
+  await page.getByRole('searchbox', { name: 'Search meetings' }).fill('deck');
+  await page.locator('.meeting-card mark', { hasText: 'deck' }).first().waitFor();
+  await page.getByRole('searchbox', { name: 'Search meetings' }).fill('zebra');
+  await page.getByText('No results for “zebra”').waitFor();
+  await page.getByRole('searchbox', { name: 'Search meetings' }).fill('');
+  await page.goBack().catch(() => {});
+  await page.goto(base + '#/m/' + (await page.evaluate(async () => {
+    const db = await new Promise(r => { const q = indexedDB.open('meeting-notes'); q.onsuccess = () => r(q.result); });
+    return new Promise(r => { const q = db.transaction('meetings').objectStore('meetings').getAll(); q.onsuccess = () => r(q.result.find(m => m.notes).id); });
+  })));
+  await page.getByText('The team discussed moving the launch date.').waitFor();
 });
 
 test('reload keeps the meeting', async () => {

@@ -1,6 +1,7 @@
 import { listMeetings, saveMeeting, appendChunk } from '../db.js';
 import { formatTime } from '../notes.js';
 import { recoverStuck } from '../process.js';
+import { searchMeetings } from '../search.js';
 import { h, header, icon, toast, dayGroup, meetingDuration } from './dom.js';
 
 const STATUS = {
@@ -38,14 +39,16 @@ async function importFile(file) {
   location.hash = `#/m/${m.id}`;
 }
 
-function meetingRow(m) {
+function meetingRow(m, snippet) {
   const [label, tone] = STATUS[m.status] || [m.status, ''];
   const time = new Date(m.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
   return h('li', {},
     h('a', { class: 'cell meeting-card', href: `#/m/${m.id}` },
       h('div', { class: 'cell-main' },
         h('div', { class: 'cell-title' }, m.title),
-        m.notes?.summary
+        snippet
+          ? h('div', { class: 'cell-sub clamp' }, snippet.before, h('mark', {}, snippet.match), snippet.after)
+          : m.notes?.summary
           ? h('div', { class: 'cell-sub clamp' }, m.notes.summary)
           : h('div', { class: 'cell-sub' }, h('span', { class: `badge ${tone}` }, label || time))),
       h('div', { class: 'cell-trail' }, formatTime(meetingDuration(m)), icon('chevron', 16))));
@@ -65,21 +68,36 @@ export async function renderLibrary(root) {
     },
   });
 
-  const groups = new Map();
-  for (const m of meetings) {
-    const g = dayGroup(m.createdAt);
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g).push(m);
-  }
-
-  const body = meetings.length
-    ? [...groups].map(([name, list]) => h('section', { class: 'section' },
-        h('h2', { class: 'section-head' }, name),
-        h('ul', { class: 'group' }, list.map(meetingRow))))
-    : h('div', { class: 'empty' },
+  const results = h('div', {});
+  function show(query) {
+    const found = searchMeetings(meetings, query);
+    if (!meetings.length) {
+      results.replaceChildren(h('div', { class: 'empty' },
         icon('waveform', 56),
         h('h2', {}, 'No meetings yet'),
-        h('p', {}, 'Tap the red button when your meeting starts. If you need to lock your phone, record in Voice Memos and import the file.'));
+        h('p', {}, 'Tap the red button when your meeting starts. If you need to lock your phone, record in Voice Memos and import the file.')));
+      return;
+    }
+    if (!found.length) {
+      results.replaceChildren(h('p', { class: 'empty-search' }, `No results for “${query.trim()}”`));
+      return;
+    }
+    const groups = new Map();
+    for (const r of found) {
+      const g = query.trim() ? 'Results' : dayGroup(r.meeting.createdAt);
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(r);
+    }
+    results.replaceChildren(...[...groups].map(([name, list]) => h('section', { class: 'section' },
+      h('h2', { class: 'section-head' }, name),
+      h('ul', { class: 'group' }, list.map(r => meetingRow(r.meeting, r.snippet))))));
+  }
+  const search = h('input', {
+    type: 'search', class: 'search', placeholder: 'Search', 'aria-label': 'Search meetings', autocomplete: 'off',
+    oninput: e => show(e.target.value),
+  });
+  show('');
+  const body = [meetings.length ? h('div', { class: 'search-wrap' }, search) : null, results];
 
   root.append(
     header('Meetings', { large: true, actions: [h('a', { href: '#/settings', class: 'nav-btn', 'aria-label': 'Settings' }, icon('gear', 24))] }),
