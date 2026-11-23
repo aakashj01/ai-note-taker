@@ -135,3 +135,13 @@ test('speaker name guesses kept only for labels that spoke', () => {
   assert.deepEqual(r.nameGuesses, { 'Speaker 2': 'Rahul' });
   assert.deepEqual(normalizeResult(raw(), 600).nameGuesses, {});
 });
+
+test('audio file names: meeting title, safe characters, right extension, part number when split', async () => {
+  const { audioFileName } = await import('../../js/notes.js');
+  const m = { title: 'Weekly sync: Q3/Q4 plan?', parts: [{ mimeType: 'audio/mp4' }] };
+  assert.equal(audioFileName(m, 0), 'Weekly sync - Q3-Q4 plan.m4a');
+  const two = { title: 'Stand-up', parts: [{ mimeType: 'audio/mp4;codecs=mp4a.40.2' }, { mimeType: 'audio/webm;codecs=opus' }] };
+  assert.equal(audioFileName(two, 1), 'Stand-up (part 2).webm');
+  assert.equal(audioFileName({ title: '', parts: [{ mimeType: 'audio/mpeg' }] }, 0), 'Meeting recording.mp3');
+  assert.equal(audioFileName({ title: 'x', parts: [{ mimeType: 'audio/x-m4a' }] }, 0), 'x.m4a');
+});

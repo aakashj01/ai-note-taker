@@ -77,7 +77,7 @@ test('no key shows settings prompt and does not call Gemini', async () => {
 
 test('record → stop → make notes shows summary, to-do and idea', async () => {
   await page.goto(base + '#/settings');
-  await page.getByText('App version 16').waitFor();
+  await page.getByText('App version 17').waitFor();
   await page.getByLabel('Gemini API key').fill('test-key');
   await page.getByRole('button', { name: 'Save' }).click();
   await page.getByRole('link', { name: 'Back' }).click();
@@ -151,6 +151,13 @@ test('backup downloads one fixed-name file, and restoring it keeps existing meet
     return new Promise(r => { const q = db.transaction('meetings').objectStore('meetings').getAll(); q.onsuccess = () => r(q.result.find(m => m.notes).id); });
   })));
   await page.getByText('The team discussed moving the launch date.').waitFor();
+});
+
+test('the recording can be downloaded as an audio file named after the meeting', async () => {
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download recording' }).click()]);
+  assert.match(download.suggestedFilename(), /^Meeting .*\.(m4a|webm)$/);
+  const fs = await import('node:fs/promises');
+  assert.ok((await fs.stat(await download.path())).size > 1000);
 });
 
 test('reload keeps the meeting', async () => {
@@ -258,7 +265,7 @@ test('how to use page covers every feature', async () => {
   await page.goto(base + '#/settings');
   await page.getByRole('link', { name: 'How to use the app' }).click();
   for (const topic of ['Set up', 'Record a meeting', 'Import from Voice Memos', 'Make notes', 'Meeting types', 'Name speakers', 'Mark important moments',
-    'Check and fix notes', 'Copy and share', 'To-dos', 'Search', 'Ask your meetings', 'Back up and restore', 'API usage and log', 'Appearance', 'Troubleshooting']) {
+    'Check and fix notes', 'Copy and share', 'Download a recording', 'To-dos', 'Search', 'Ask your meetings', 'Back up and restore', 'API usage and log', 'Appearance', 'Troubleshooting']) {
     await page.getByText(topic, { exact: true }).first().waitFor();
   }
   await page.getByText('Record a meeting', { exact: true }).click();

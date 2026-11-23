@@ -1,5 +1,7 @@
 import { getMeeting, saveMeeting, deleteMeeting } from '../db.js';
-import { formatTime, displaySpeaker, sectionText, toChatText } from '../notes.js';
+import { formatTime, displaySpeaker, sectionText, toChatText, audioFileName } from '../notes.js';
+import { getPartBlob } from '../db.js';
+import { shareOrDownload } from '../backup.js';
 import { processMeeting, regenerateNotes, isRunning, onJobChange, jobStatus, NO_KEY } from '../process.js';
 import { h, header, icon, toast, copyText, formatDate, meetingDuration } from './dom.js';
 import { createPlayer } from './player.js';
@@ -131,8 +133,50 @@ export async function renderMeeting(root, id) {
           h('li', {}, h('button', { class: 'cell action', disabled: running, onclick: async () => { await save(); make(regenerateNotes); } }, 'Regenerate notes')),
           h('li', {}, h('button', { class: 'cell action', disabled: running, onclick: async () => { await save(); make(processMeeting); } }, 'Re-listen to the audio'))),
         h('p', { class: 'section-foot' }, 'Regenerate uses your corrected transcript. Re-listen starts again from the recording.')) : null,
+      recordingSection(),
       section(null, h('ul', { class: 'group' }, h('li', {}, h('button', { class: 'cell action destructive', onclick: remove }, 'Delete meeting')))),
     ].flat(Infinity).filter(Boolean));
+  }
+
+  // Save the audio to Files / AirDrop / WhatsApp via the share sheet (download elsewhere).
+  const prepared = new Map();
+  async function downloadPart(i, btn) {
+    const p = m.parts[i];
+    let file = prepared.get(i);
+    if (!file) {
+      const blob = await getPartBlob(p.id, p.mimeType);
+      if (!blob.size) { toast('This recording isn’t on this phone'); return; }
+      file = new File([blob], audioFileName(m, i), { type: (p.mimeType || 'audio/mp4').split(';')[0] });
+    }
+    const download = f => {
+      const a = h('a', { href: URL.createObjectURL(f), download: f.name });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    };
+    try {
+      const how = await shareOrDownload(file, { canShare: f => navigator.canShare?.(f), share: navigator.share && (d => navigator.share(d)), download });
+      if (how === 'needs-tap') { prepared.set(i, file); btn.textContent = 'Ready. Tap again to save'; return; }
+      prepared.delete(i);
+      if (how === 'downloaded') toast('Recording downloaded');
+    } catch (e) {
+      if (e.name !== 'AbortError') toast('Could not save the recording: ' + e.message);
+    }
+  }
+
+  function recordingSection() {
+    const parts = m.parts || [];
+    if (!parts.length) return null;
+    if (m.audioMissing) return section('Recording', h('p', { class: 'summary' }, 'The recording isn’t on this phone. It was restored from a backup without recordings.'));
+    const many = parts.length > 1;
+    return section('Recording',
+      h('ul', { class: 'group' }, parts.map((p, i) => h('li', {},
+        h('button', {
+          class: 'cell action', 'aria-label': many ? `Download recording part ${i + 1}` : 'Download recording',
+          onclick: e => downloadPart(i, e.currentTarget),
+        }, icon('import', 20), many ? ` Download part ${i + 1} (from ${formatTime(p.startOffset)})` : ' Download recording')))),
+      h('p', { class: 'section-foot' }, many
+        ? 'This recording was interrupted, so it’s saved in parts. Choose Save to Files to keep a copy.'
+        : 'Choose Save to Files to keep a copy, or send it with AirDrop or WhatsApp.'));
   }
 
   async function share() {

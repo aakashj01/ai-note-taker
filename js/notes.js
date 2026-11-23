@@ -108,3 +108,14 @@ export function toChatText(meeting) {
     ...(meeting.notes?.extraSections || []).map((_, i) => `extra:${i}`)];
   return [`*${meeting.title}*\n${date}`, ...parts.map(w => sectionText(meeting, w))].join('\n\n');
 }
+
+const EXT = { 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a', 'audio/aac': 'aac', 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav' };
+
+// "Weekly sync.m4a", or "Weekly sync (part 2).m4a" when a recording was interrupted and continued.
+export function audioFileName(meeting, index) {
+  const parts = meeting.parts || [];
+  const mime = (parts[index]?.mimeType || '').split(';')[0].trim().toLowerCase();
+  const ext = EXT[mime] || 'm4a';
+  const title = (meeting.title || '').replace(/[\\/]/g, '-').replace(/:/g, ' -').replace(/[*?"<>|]/g, '').replace(/\s+/g, ' ').trim() || 'Meeting recording';
+  return `${title}${parts.length > 1 ? ` (part ${index + 1})` : ''}.${ext}`;
+}

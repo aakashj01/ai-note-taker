@@ -50,6 +50,12 @@ const GUIDE = [
     'Each section (Summary, To-dos, Key ideas and the extra ones) has its own Copy button. Paste straight into WhatsApp or any chat: headings come out bold.',
     'The share button at the top right of a meeting sends all the notes at once.',
   ]],
+  ['Download a recording', 'import', [
+    'Open a meeting, scroll to Recording and tap Download recording. This works for every meeting still on this phone, including older ones.',
+    'Choose Save to Files to keep the audio in iCloud Drive, or send it with AirDrop, WhatsApp or Mail. The file is named after the meeting.',
+    'If the recording was interrupted and continued, it’s saved in parts: each part has its own button.',
+    'If iPhone says the file is ready, tap the button once more to save it.',
+  ]],
   ['To-dos', 'checklist', [
     'Tap To-dos at the bottom of Meetings to see every open to-do from every meeting.',
     'Tap a name to see only that person’s to-dos. Turn on Show done to see finished ones.',
